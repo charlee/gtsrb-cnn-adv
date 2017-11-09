@@ -119,18 +119,20 @@ class GtsrbProvider(DatasetProvider):
                     training_set.dump(os.path.join(self.data_dir, 'training-{}.npy'.format(class_label)))
                     test_set.dump(os.path.join(self.data_dir, 'test-{}.npy'.format(class_label)))
 
-    def next_batch(self, type='training'):
+    def next_batch(self, type='training', batch_size=None):
 
         image_size = self.IMAGE_SIZE * self.IMAGE_SIZE
         array_size = image_size + 1
+
+        if not batch_size:
+            batch_size = self.batch_size
 
         if not hasattr(self, 'pool'):
             self.pool = np.empty(shape=[0, array_size], dtype=np.uint8)
             self.current_file_no = 0
 
-        # if local pool is less than batch_size * 50 then load new data
-        # (* 50 means preload 100 batches)
-        while self.pool.shape[0] < self.batch_size * 50:
+        # if local pool is less than batch_size then load new data
+        while self.pool.shape[0] < batch_size:
             filename = '{}-{}.npy'.format(type, self.current_file_no)
             logger.info('load new file: {}'.format(filename))
             filepath = os.path.join(self.data_dir, filename)
@@ -153,11 +155,18 @@ class GtsrbProvider(DatasetProvider):
 
         np.random.shuffle(self.pool)
 
-        batch = self.pool[0:self.batch_size]
-        self.pool = self.pool[self.batch_size:]
+        batch = self.pool[0:batch_size]
+        self.pool = self.pool[batch_size:]
 
+        # Cut data to image data and label data
         images = batch[:, :image_size]
         labels = batch[:, image_size:]
 
-        return (images, labels)
+        # Convert label data to one-hot array
+        one_hot_labels = np.zeros(shape=[labels.shape[0], self.CLASSES], dtype=np.float32)
+        for i in range(labels.shape[0]):
+            class_id = labels[i][0]
+            one_hot_labels[i, class_id] = 1
+
+        return (images, one_hot_labels)
 

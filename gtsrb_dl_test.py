@@ -1,9 +1,17 @@
 import logging
+import tensorflow as tf
 from cnn_gtsrb.dataset.gtsrb import GtsrbProvider
-logging.basicConfig(level=logging.INFO)
+from cnn_gtsrb.cnn.model import CNNModel
+#logging.basicConfig(level=logging.INFO)
 
+tf.logging.set_verbosity(tf.logging.INFO)
 
 gtsrb = GtsrbProvider()
-for i in range(10):
-    data = gtsrb.next_batch()
-    print(data)
+
+cnn = CNNModel(image_size=gtsrb.IMAGE_SIZE, classes=gtsrb.CLASSES)
+cnn.train(10000, gtsrb)
+
+# for i in range(100):
+#     data, label = gtsrb.next_batch()
+#
+# print(label[0])
