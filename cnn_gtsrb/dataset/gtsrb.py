@@ -14,7 +14,7 @@ logger = logging.getLogger('gtsrb')
 class GtsrbClass:
     """A GTSRB class folder with images of the same class."""
 
-    IMAGE_SIZE = 32
+    IMAGE_SIZE = 64
 
     def __init__(self, index_file, train_ratio=80):
         self.train_ratio = train_ratio
@@ -77,7 +77,7 @@ class GtsrbProvider(DatasetProvider):
     TEST_ANNOTATION_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Test_GT.zip'
     DATA_DIR = settings.DATA_TEMP_GTSRB
 
-    IMAGE_SIZE = 32
+    IMAGE_SIZE = 64
     CLASSES = 43
 
     def init(self):

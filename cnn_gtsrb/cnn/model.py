@@ -9,7 +9,21 @@ logger = logging.getLogger('cnn')
 
 class CNNModel():
 
-    def __init__(self, image_size, classes, model_name, model_dir):
+    def __init__(self, image_size, classes, model_name, model_dir,
+                 kernel_size=[5, 5],
+                 conv_layers=[32, 64],
+                 fc_layer=1024,
+                 ):
+        """
+        Make a CNN model.
+        :param image_size: Image size of input.
+        :param classes: Number of classes.
+        :param model_name: model name (used for model saving).
+        :param model_dir: Model save dir.
+        :param kernel_size: Convolutional kernel size
+        :param conv_layers: An array of the number of features of each layer.
+        :param fc_layer: Number of features in the full connected layer.
+        """
 
         self.image_size = image_size
         self.classes = classes
@@ -17,46 +31,56 @@ class CNNModel():
         self.model_dir = model_dir
 
         # Input layer
-        x = tf.placeholder(tf.int8, shape=[None, self.image_size * self.image_size], name='raw_input')
+        with tf.name_scope('input'):
+            x = tf.placeholder(tf.int8, shape=[None, self.image_size * self.image_size], name='raw_input')
 
-        # Convert to float32 matrix of [batch_size, self.image_size, self.image_size, color_depth]
-        input = tf.cast(x, tf.float32) * (1. /255) - 0.5
-        input = tf.reshape(input, shape=[-1, self.image_size, self.image_size, 1], name='reshaped_input')
+            # Convert to float32 matrix of [batch_size, self.image_size, self.image_size, color_depth]
+            input = tf.cast(x, tf.float32) * (1. /255) - 0.5
+            input = tf.reshape(input, shape=[-1, self.image_size, self.image_size, 1], name='reshaped_input')
 
-        # Convolutional Layer #1 => 32 maps, 32x32
-        W_conv1 = self.weight_variable([5, 5, 1, 32])
-        b_conv1 = self.bias_variable([32])
-        h_conv1 = tf.nn.relu(self.conv2d(input, W_conv1) + b_conv1, name='conv1')
+        with tf.name_scope('cnn'):
+            h_pool = input
+            prev_layer_features = 1
+            layer_size = self.image_size * self.image_size        # size of current layer
 
-        # Pooling Layer #1 => 32 maps, 16x16
-        h_pool1 = self.max_pool_2x2(h_conv1, name='pool1')
+            for layer_count, feature_count in enumerate(conv_layers):
+                # Convolutional Layer
+                W_conv = self.weight_variable(
+                    [kernel_size[0], kernel_size[1], prev_layer_features, feature_count],
+                    name='weight_{}'.format(layer_count+1)
+                )
 
-        # Convolutional Layer #2 => 64 maps, 16x16
-        W_conv2 = self.weight_variable([5, 5, 32, 64])
-        b_conv2 = self.bias_variable([64])
-        h_conv2 = tf.nn.relu(self.conv2d(h_pool1, W_conv2) + b_conv2, name='conv2')
+                b_conv = self.bias_variable([feature_count], name='bias_{}'.format(layer_count+1))
+                h_conv = tf.nn.relu(
+                    self.conv2d(h_pool, W_conv) + b_conv, name='conv_{}'.format(layer_count+1)
+                )
 
-        # Polling Layer #2 => 64 maps, 8x8
-        h_pool2 = self.max_pool_2x2(h_conv2, name='pool2')
+                # Pooling Layer #1 => 32 maps, 16x16
+                h_pool = self.max_pool_2x2(h_conv, name='pool_{}'.format(layer_count+1))
 
-        # Full-connected Layer
-        image_size2 = self.image_size // 4
-        fc_size = image_size2 * image_size2 * 64
-        W_fc1 = self.weight_variable([fc_size, 1024])
-        b_fc1 = self.bias_variable([1024])
+                prev_layer_features = feature_count
+                layer_size //= 4
 
-        h_pool2_flat = tf.reshape(h_pool2, [-1, fc_size])
-        h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1, name='fc1')
 
-        # Dropout layer => [batch_size x 1024]
-        keep_prob = tf.placeholder(tf.float32)
-        h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+            # Full-connected Layer
+            fc_size = layer_size * prev_layer_features
+            W_fc1 = self.weight_variable([fc_size, fc_layer], name='fc_weight')
+            b_fc1 = self.bias_variable([fc_layer], name='fc_bias')
 
-        # Readout layer
-        W_fc2 = self.weight_variable([1024, self.classes])
-        b_fc2 = self.bias_variable([self.classes])
+            h_drop_flat = tf.reshape(h_pool, [-1, fc_size])
+            h_fc1 = tf.nn.relu(tf.matmul(h_drop_flat, W_fc1) + b_fc1, name='fc1')
 
-        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+            # Dropout layer => [batch_size x 1024]
+            keep_prob = tf.placeholder(tf.float32)
+            h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+
+
+        with tf.name_scope('output'):
+            # Readout layer
+            W_fc2 = self.weight_variable([fc_layer, self.classes], name='fc_readout')
+            b_fc2 = self.bias_variable([self.classes], name='bias_readout')
+
+            y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
         # Label
         y_ = tf.placeholder(tf.float32, shape=[None, self.classes], name="labels")
@@ -116,7 +140,7 @@ class CNNModel():
                 batch = data_provider.next_batch()
 
                 train_step.run(
-                    feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+                    feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 0.5})
 
                 if i % 100 == 0:
                     self.save_train_summary(sess, batch)
@@ -196,13 +220,13 @@ class CNNModel():
             logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(sess)))
 
 
-    def weight_variable(self, shape):
+    def weight_variable(self, shape, name):
         initial = tf.truncated_normal(shape, stddev=0.1)
-        return tf.Variable(initial)
+        return tf.Variable(initial, name=name)
 
-    def bias_variable(self, shape):
+    def bias_variable(self, shape, name):
         initial = tf.constant(0.1, shape=shape)
-        return tf.Variable(initial)
+        return tf.Variable(initial, name=name)
 
     def conv2d(self, x, W):
         return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
