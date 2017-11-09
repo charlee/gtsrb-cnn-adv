@@ -14,7 +14,9 @@ cnn = CNNModel(
     model_name='gtsrb',
     model_dir='tmp/gtsrb_model'
 )
-cnn.train(100000, gtsrb)
+cnn.train(1000, gtsrb)
+
+#cnn.test(2000, gtsrb)
 
 # for i in range(100):
 #     data, label = gtsrb.next_batch()

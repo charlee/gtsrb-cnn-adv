@@ -61,16 +61,26 @@ class CNNModel():
         # Label
         y_ = tf.placeholder(tf.float32, shape=[None, self.classes], name="labels")
 
-        # Loss function
-        cross_entrophy = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv)
-        )
+        with tf.name_scope('cross_entrophy'):
+            # Loss function
+            cross_entrophy = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv)
+            )
+            tf.summary.scalar('cross_entrophy', cross_entrophy)
+
+        with tf.name_scope('accuracy'):
+            correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            tf.summary.scalar('accuracy', accuracy)
 
         self.x = x
         self.y_ = y_
         self.keep_prob = keep_prob
         self.y_conv = y_conv
         self.cross_entrophy = cross_entrophy
+        self.accuracy = accuracy
+
+        self.merged = tf.summary.merge_all()
 
         tf.train.create_global_step()
 
@@ -85,11 +95,16 @@ class CNNModel():
 
         global_step = tf.train.get_global_step()
 
-        train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
-        correct_prediction = tf.equal(tf.argmax(self.y_conv, 1), tf.argmax(self.y_, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+        with tf.name_scope('train'):
+            train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
 
         with tf.Session() as sess:
+            train_summary_dir = os.path.join(self.model_dir, 'train')
+            if not os.path.isdir(train_summary_dir):
+                os.makedirs(train_summary_dir)
+            self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
+
             sess.run(tf.global_variables_initializer())
 
             # Restore the model
@@ -97,26 +112,46 @@ class CNNModel():
 
             for i in range(epoch):
                 batch = data_provider.next_batch()
-                if i % 100 == 0:
-                    train_accuracy = accuracy.eval(
-                        feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
-                    print('Step {}, training accuracy={}'.format(global_step.eval(sess), train_accuracy))
-
-                # Save model every 1000 epoch
-                if i % 1000 == 0:
-                    self.save_model(sess)
 
                 train_step.run(
                     feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
 
+                if i % 100 == 0:
+                    self.save_train_summary(sess, batch)
+
+
             # Save the model
             self.save_model(sess)
 
+
+    def test(self, batch_size, data_provider):
+        if not issubclass(data_provider.__class__, DatasetProvider):
+            raise TypeError('data_provider must be a subclass of DatasetProvider')
+
+        logger.info('Testing model with {} data...'.format(batch_size))
+
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+
+            # Restore the model
+            self.restore_model(sess)
+
             # Evaluate the trainned model
-            test_batch = data_provider.next_batch(type='test', batch_size=200)
-            test_accuracy = accuracy.eval(
+            test_batch = data_provider.next_batch(type='test', batch_size=batch_size)
+            test_accuracy = self.accuracy.eval(
                 feed_dict={self.x: test_batch[0], self.y_: test_batch[1], self.keep_prob: 1.0})
             print('test accuracy: {}'.format(test_accuracy))
+
+
+    def save_train_summary(self, sess, batch):
+        global_step = tf.train.get_global_step()
+        step = global_step.eval(sess)
+
+        summary, train_accuracy = sess.run([self.merged, self.accuracy],
+            feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+        self.train_summary_writer.add_summary(summary, step)
+        print('Step {}, training accuracy={}'.format(step, train_accuracy))
+
 
     def save_model(self, sess):
         saver = tf.train.Saver()
@@ -135,11 +170,12 @@ class CNNModel():
         saver = tf.train.Saver()
 
         save_path = tf.train.latest_checkpoint(self.model_dir)
-        saver.restore(sess, save_path)
+        if save_path:
+            saver.restore(sess, save_path)
 
-        global_step = tf.train.get_global_step()
+            global_step = tf.train.get_global_step()
 
-        logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(sess)))
+            logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(sess)))
 
 
     def weight_variable(self, shape):
