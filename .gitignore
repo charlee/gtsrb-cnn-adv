@@ -1,0 +1,19 @@
+# Python virtualenv
+.env/
+
+# PyCharm
+.idea/
+
+# Data
+tmp/
+
+# Python related.
+__pycache__/
+
+
+# TeX related.
+docs/*.pdf
+docs/*.aux
+docs/*.bbl
+docs/*.log
+docs/*.synctex.gz
