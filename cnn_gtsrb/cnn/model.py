@@ -1,12 +1,20 @@
+import os
+import logging
 import tensorflow as tf
 from cnn_gtsrb.dataset.base import DatasetProvider
 
+
+logger = logging.getLogger('cnn')
+
+
 class CNNModel():
 
-    def __init__(self, image_size, classes):
+    def __init__(self, image_size, classes, model_name, model_dir):
 
         self.image_size = image_size
         self.classes = classes
+        self.model_name = model_name
+        self.model_dir = model_dir
 
         # Input layer
         x = tf.placeholder(tf.int8, shape=[None, self.image_size * self.image_size], name='raw_input')
@@ -64,6 +72,8 @@ class CNNModel():
         self.y_conv = y_conv
         self.cross_entrophy = cross_entrophy
 
+        tf.train.create_global_step()
+
 
     def train(self, epoch, data_provider):
         """Train the model with given data.
@@ -73,27 +83,64 @@ class CNNModel():
         if not issubclass(data_provider.__class__, DatasetProvider):
             raise TypeError('data_provider must be a subclass of DatasetProvider')
 
-        train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy)
+        global_step = tf.train.get_global_step()
+
+        train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
         correct_prediction = tf.equal(tf.argmax(self.y_conv, 1), tf.argmax(self.y_, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
+
+            # Restore the model
+            self.restore_model(sess)
+
             for i in range(epoch):
                 batch = data_provider.next_batch()
                 if i % 100 == 0:
                     train_accuracy = accuracy.eval(
                         feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
-                    print('Step {}, training accuracy={}'.format(i, train_accuracy))
+                    print('Step {}, training accuracy={}'.format(global_step.eval(sess), train_accuracy))
+
+                # Save model every 1000 epoch
+                if i % 1000 == 0:
+                    self.save_model(sess)
 
                 train_step.run(
                     feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+
+            # Save the model
+            self.save_model(sess)
 
             # Evaluate the trainned model
             test_batch = data_provider.next_batch(type='test', batch_size=200)
             test_accuracy = accuracy.eval(
                 feed_dict={self.x: test_batch[0], self.y_: test_batch[1], self.keep_prob: 1.0})
             print('test accuracy: {}'.format(test_accuracy))
+
+    def save_model(self, sess):
+        saver = tf.train.Saver()
+        if not os.path.isdir(self.model_dir):
+            os.makedirs(self.model_dir)
+
+        ckpt_file = '{}.ckpt'.format(self.model_name)
+        ckpt_path = os.path.join(self.model_dir, ckpt_file)
+
+        global_step = tf.train.get_global_step()
+
+        save_path = saver.save(sess, ckpt_path, global_step=global_step)
+        logger.info('Model saved as {}.'.format(save_path))
+
+    def restore_model(self, sess):
+        saver = tf.train.Saver()
+
+        save_path = tf.train.latest_checkpoint(self.model_dir)
+        saver.restore(sess, save_path)
+
+        global_step = tf.train.get_global_step()
+
+        logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(sess)))
+
 
     def weight_variable(self, shape):
         initial = tf.truncated_normal(shape, stddev=0.1)
