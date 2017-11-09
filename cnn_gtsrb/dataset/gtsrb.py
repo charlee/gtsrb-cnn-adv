@@ -128,35 +128,35 @@ class GtsrbProvider(DatasetProvider):
             batch_size = self.batch_size
 
         if not hasattr(self, 'pool'):
-            self.pool = np.empty(shape=[0, array_size], dtype=np.uint8)
-            self.current_file_no = 0
+            self.pool = {
+                'training': np.empty(shape=[0, array_size], dtype=np.uint8),
+                'test': np.empty(shape=[0, array_size], dtype=np.uint8),
+            }
+            self.current_pos = 0
 
-        # if local pool is less than batch_size then load new data
-        while self.pool.shape[0] < batch_size:
-            filename = '{}-{}.npy'.format(type, self.current_file_no)
-            logger.info('load new file: {}'.format(filename))
-            filepath = os.path.join(self.data_dir, filename)
+            for root, dirs, files in os.walk(self.data_dir):
+                for f in files:
+                    filepath = os.path.join(root, f)
 
-            # Load data
-            data = np.load(filepath)
-            data = np.reshape(data, [-1, array_size])
+                    # Load data
+                    data = np.load(filepath)
+                    data = np.reshape(data, [-1, array_size])
 
-            # Make label
-            label = np.full(shape=[data.shape[0], 1], fill_value=self.current_file_no, dtype=np.uint32)
+                    if f.startswith('training'):
+                        self.pool['training'] = np.append(self.pool['training'], data, axis=0)
+                    elif f.startswith('test'):
+                        self.pool['test'] = np.append(self.pool['test'], data, axis=0)
 
-            self.pool = np.concatenate((self.pool, data), axis=0)
+            np.random.shuffle(self.pool['training'])
+            np.random.shuffle(self.pool['test'])
 
-            # next time read next file
-            self.current_file_no += 1
-
-            # If read all files then repeat
-            if self.current_file_no >= self.CLASSES:
-                self.current_file_no = 0
-
-        np.random.shuffle(self.pool)
-
-        batch = self.pool[0:batch_size]
-        self.pool = self.pool[batch_size:]
+        batch = self.pool[type][self.current_pos:(self.current_pos+batch_size)]
+        if len(batch) < batch_size:
+            batch_ = self.pool[type][0:(batch_size - len(batch))]
+            batch = np.append(batch, batch_, axis=0)
+            self.current_pos = batch_size - len(batch)
+        else:
+            self.current_pos += batch_size
 
         # Cut data to image data and label data
         images = batch[:, :image_size]
