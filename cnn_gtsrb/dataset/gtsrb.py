@@ -65,18 +65,18 @@ class GtsrbClass:
 
         training_count = min(int(num_signs * 0.8), num_signs - 1)
 
-        training_set = images[:training_count * 30]
-        test_set = images[training_count * 30:]
-
         # convert to ndarary
-        array_size = self.IMAGE_SIZE * self.IMAGE_SIZE
-        training_set = [np.fromstring(image, dtype=np.uint8, count=array_size)
-                        for image in training_set]
-        training_set = np.concatenate(training_set, axis=0)
+        image_size = self.IMAGE_SIZE * self.IMAGE_SIZE
+        dataset = [
+            np.reshape(np.fromstring(image, dtype=np.uint8, count=image_size), [1, image_size])
+            for image in images]
+        dataset = np.concatenate(dataset, axis=0)
 
-        test_set = [np.fromstring(image, dtype=np.uint8, count=array_size)
-                    for image in test_set]
-        test_set = np.concatenate(test_set, axis=0)
+        labels = np.full(shape=[dataset.shape[0], 1], fill_value=self.class_id, dtype=np.uint8)
+        dataset = np.concatenate((dataset, labels), axis=1)
+
+        training_set = dataset[:training_count * 30]
+        test_set = dataset[training_count * 30:]
 
         return (training_set, test_set, self.class_id)
 
@@ -121,31 +121,43 @@ class GtsrbProvider(DatasetProvider):
 
     def next_batch(self, type='training'):
 
-        array_size = self.IMAGE_SIZE * self.IMAGE_SIZE
+        image_size = self.IMAGE_SIZE * self.IMAGE_SIZE
+        array_size = image_size + 1
 
         if not hasattr(self, 'pool'):
             self.pool = np.empty(shape=[0, array_size], dtype=np.uint8)
             self.current_file_no = 0
 
-        # if local pool is less than batch_size then load new data
-        while self.pool.shape[0] < self.batch_size:
+        # if local pool is less than batch_size * 50 then load new data
+        # (* 50 means preload 100 batches)
+        while self.pool.shape[0] < self.batch_size * 50:
             filename = '{}-{}.npy'.format(type, self.current_file_no)
             logger.info('load new file: {}'.format(filename))
             filepath = os.path.join(self.data_dir, filename)
+
+            # Load data
             data = np.load(filepath)
+            data = np.reshape(data, [-1, array_size])
+
+            # Make label
+            label = np.full(shape=[data.shape[0], 1], fill_value=self.current_file_no, dtype=np.uint32)
+
+            self.pool = np.concatenate((self.pool, data), axis=0)
+
+            # next time read next file
             self.current_file_no += 1
 
             # If read all files then repeat
             if self.current_file_no >= self.CLASSES:
                 self.current_file_no = 0
 
-            data = np.reshape(data, [-1, array_size])
-            self.pool = np.concatenate((self.pool, data), axis=0)
-
         np.random.shuffle(self.pool)
 
         batch = self.pool[0:self.batch_size]
         self.pool = self.pool[self.batch_size:]
 
-        return batch
+        images = batch[:, :image_size]
+        labels = batch[:, image_size:]
+
+        return (images, labels)
 

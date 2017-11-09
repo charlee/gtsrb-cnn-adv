@@ -1,4 +1,5 @@
 import tensorflow as tf
+from cnn_gtsrb.dataset.base import DatasetProvider
 
 class CNNModel():
 
@@ -57,13 +58,22 @@ class CNNModel():
             tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv)
         )
 
+        self.y_ = y_
         self.y_conv = y_conv
         self.cross_entrophy = cross_entrophy
 
 
     def train(self, epoch, data_provider):
-        pass
+        """Train the model with given data.
+        data_provider must be a subclass of DatasetProvider which provides a `next_batch` function
+        that will return a tuple of (data, label).
+        """
+        if isinstance(data_provider, DatasetProvider):
+            raise TypeError('data_provider must be a instance of DatasetProvider')
 
+        train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy)
+        correct_prediction = tf.equal(tf.argmax(self.y_conv, 1), tf.argmax(self.y_, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     def weight_variable(shape):
         initial = tf.truncated_normal(shape, stddev=0.1)
