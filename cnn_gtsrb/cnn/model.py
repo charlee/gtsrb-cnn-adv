@@ -95,15 +95,17 @@ class CNNModel():
 
         global_step = tf.train.get_global_step()
 
-
         with tf.name_scope('train'):
             train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
 
         with tf.Session() as sess:
-            train_summary_dir = os.path.join(self.model_dir, 'train')
+            # Summary writers
+            train_summary_dir = os.path.join(self.model_dir, 'training')
+            test_summary_dir = os.path.join(self.model_dir, 'test')
             if not os.path.isdir(train_summary_dir):
                 os.makedirs(train_summary_dir)
             self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
+            self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, sess.graph)
 
             sess.run(tf.global_variables_initializer())
 
@@ -118,6 +120,10 @@ class CNNModel():
 
                 if i % 100 == 0:
                     self.save_train_summary(sess, batch)
+
+                if i % 1000 == 0:
+                    test_batch = data_provider.next_batch('test', 1000)
+                    self.save_test_summary(sess, test_batch)
 
 
             # Save the model
@@ -144,6 +150,7 @@ class CNNModel():
 
 
     def save_train_summary(self, sess, batch):
+        """Save traning summary data (accuracy, cross_entrophy) to model dir."""
         global_step = tf.train.get_global_step()
         step = global_step.eval(sess)
 
@@ -151,6 +158,17 @@ class CNNModel():
             feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
         self.train_summary_writer.add_summary(summary, step)
         print('Step {}, training accuracy={}'.format(step, train_accuracy))
+
+    def save_test_summary(self, sess, batch):
+        """Save test summary data (accuracy, cross_entrophy) to model dir."""
+        global_step = tf.train.get_global_step()
+        step = global_step.eval(sess)
+
+        summary, test_accuracy = sess.run([self.merged, self.accuracy],
+                                           feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+        self.test_summary_writer.add_summary(summary, step)
+        print('Step {}, test accuracy={}'.format(step, test_accuracy))
+
 
 
     def save_model(self, sess):
