@@ -46,3 +46,14 @@ class DatasetProvider():
         zip_ref.close()
         print('done.')
         sys.stdout.flush()
+
+    def download_and_unzip(self, url, local_file, data_dir):
+        """Will download url to local_file (if local_file does not exist)
+        and extract local_file to data_dir.
+        However will do nothing if data_dir exists.
+        """
+        if not os.path.isdir(data_dir):
+            if not os.path.isfile(local_file):
+                self.download(url, local_file)
+            os.makedirs(data_dir)
+            self.unzip(local_file, data_dir)

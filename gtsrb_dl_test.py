@@ -8,17 +8,17 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 gtsrb = GtsrbProvider()
 
-cnn = CNNModel(
-    image_size=gtsrb.IMAGE_SIZE,
-    classes=gtsrb.CLASSES,
-    model_name='gtsrb',
-    model_dir='tmp/gtsrb_model'
-)
-cnn.train(40000, gtsrb)
+# cnn = CNNModel(
+#     image_size=gtsrb.IMAGE_SIZE,
+#     classes=gtsrb.CLASSES,
+#     model_name='gtsrb',
+#     model_dir='tmp/gtsrb_model'
+# )
+# cnn.train(150000, gtsrb)
 
 #cnn.test(2000, gtsrb)
 
 # for i in range(100):
-#     data, label = gtsrb.next_batch()
-#     print(label)
+#     data, label = gtsrb.next_batch('test')
+#     print(data, label)
 

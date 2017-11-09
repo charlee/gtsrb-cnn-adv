@@ -1,4 +1,5 @@
 import os
+import shutil
 import logging
 import csv
 import numpy as np
@@ -38,22 +39,27 @@ class GtsrbClass:
                     self.image_list.append({
                         'path': image_path,
                         'box': (int(x1), int(y1), int(x2), int(y2)),
+                        'label': int(class_id),
                     })
 
-                    self.class_id = int(class_id)
-
     def read_image(self, image_info):
+        """Read from ppm image and return a ndarray with size [1, self.IMAGE_SIZE * self.IMAGE_SIZE + 1],
+        in which the last element is the label."""
         im = Image.open(image_info['path'])
         im = im.crop(image_info['box'])
         im = im.convert('L')
         im = im.resize((self.IMAGE_SIZE, self.IMAGE_SIZE))
         data = im.tobytes()
-        im.close()
+        data = np.fromstring(data, dtype=np.uint8)
+        data = np.append(data, [image_info['label']])
+
+        size = data.shape[0]
+
+        data = np.reshape(data, [1, size])
 
         return data
 
-
-    def datasets(self):
+    def get_dataset(self):
         """Use first 80% as traning set and last 80% as test set.
         GTSRB has 30 images as a group for each traffic sign.
         In each group, images are from the same real life sign (screenshot from a video).
@@ -61,29 +67,14 @@ class GtsrbClass:
         we take 80% of total distinct traffic signs as traning set.
         """
         images = [self.read_image(im) for im in self.image_list]
-        num_signs = len(images) // 30           # Number of distinct traffic signs
 
-        training_count = min(int(num_signs * 0.8), num_signs - 1)
-
-        # convert to ndarary
-        image_size = self.IMAGE_SIZE * self.IMAGE_SIZE
-        dataset = [
-            np.reshape(np.fromstring(image, dtype=np.uint8, count=image_size), [1, image_size])
-            for image in images]
-        dataset = np.concatenate(dataset, axis=0)
-
-        labels = np.full(shape=[dataset.shape[0], 1], fill_value=self.class_id, dtype=np.uint8)
-        dataset = np.concatenate((dataset, labels), axis=1)
-
-        training_set = dataset[:training_count * 30]
-        test_set = dataset[training_count * 30:]
-
-        return (training_set, test_set, self.class_id)
+        return images
 
 
 class GtsrbProvider(DatasetProvider):
-    DL_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Training_Images.zip'
-    ZIP_NAME = 'GTSRB_Final_Training_Images.zip'
+    TRAINING_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Training_Images.zip'
+    TEST_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Test_Images.zip'
+    TEST_ANNOTATION_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Test_GT.zip'
     DATA_DIR = settings.DATA_TEMP_GTSRB
 
     IMAGE_SIZE = 32
@@ -91,33 +82,65 @@ class GtsrbProvider(DatasetProvider):
 
     def init(self):
 
-        self.rawdata_dir = os.path.join(self.DATA_DIR, 'rawdata')
-        self.data_dir = os.path.join(self.DATA_DIR, 'data')
-
+        self.data_dir = os.path.join(self.DATA_DIR, 'gtsrb_data')
         if not os.path.isdir(self.data_dir):
-            if not os.path.isdir(self.rawdata_dir):
-
-                local_file = os.path.join(self.DATA_DIR, self.ZIP_NAME)
-                if not os.path.isfile(local_file):
-                    self.download(self.DL_URL, local_file)
-
-                self.unzip(local_file, self.rawdata_dir)
-
             os.makedirs(self.data_dir)
-            self.process_gtsrb()
 
-    def process_gtsrb(self):
+            rawdata_dir = os.path.join(self.DATA_DIR, 'rawdata')
+
+            training_dir = os.path.join(rawdata_dir, 'training')
+            self.download_and_unzip(
+                self.TRAINING_URL,
+                os.path.join(rawdata_dir, 'GTSRB_Final_Training_Images.zip'),
+                training_dir,
+            )
+
+            test_dir = os.path.join(rawdata_dir, 'test')
+            self.download_and_unzip(
+                self.TEST_URL,
+                os.path.join(rawdata_dir, 'GTSRB_Final_Test_Images.zip'),
+                test_dir,
+            )
+
+            test_annotation_dir = os.path.join(rawdata_dir, 'test-annotation')
+            self.download_and_unzip(
+                self.TEST_ANNOTATION_URL,
+                os.path.join(rawdata_dir, 'GTSRB_Final_Test_GT.zip'),
+                test_annotation_dir,
+            )
+
+            useless_annotation = os.path.join(test_dir, 'GTSRB', 'Final_Test', 'Images', 'GT-final_test.test.csv')
+            if os.path.isfile(useless_annotation):
+                os.remove(useless_annotation)
+
+            useful_annotation = os.path.join(test_dir, 'GTSRB', 'Final_Test', 'Images', 'GT-final_test.csv')
+
+            if not os.path.isfile(useful_annotation):
+                shutil.copyfile(
+                    os.path.join(test_annotation_dir, 'GT-final_test.csv'),
+                    useful_annotation,
+                )
+
+            self.process_gtsrb(training_dir, 'training')
+            self.process_gtsrb(test_dir, 'test')
+
+    def process_gtsrb(self, path, prefix):
         """Pre-process gtsrb data."""
-        for root, dirs, files in os.walk(self.rawdata_dir):
+
+        all_dataset = []
+
+        for root, dirs, files in os.walk(path):
             for f in files:
                 if f.endswith('.csv'):
-                    logger.info('Generating examples for {}'.format(f))
+                    print('Generating dataset for {}'.format(f))
                     filepath = os.path.join(root, f)
                     gtsrb_class = GtsrbClass(filepath)
-                    (training_set, test_set, class_label) = gtsrb_class.datasets()
+                    dataset = gtsrb_class.get_dataset()
 
-                    training_set.dump(os.path.join(self.data_dir, 'training-{}.npy'.format(class_label)))
-                    test_set.dump(os.path.join(self.data_dir, 'test-{}.npy'.format(class_label)))
+                    all_dataset += dataset
+
+        all = np.concatenate(all_dataset, axis=0)
+        all.dump(os.path.join(self.data_dir, '{}.npy'.format(prefix)))
 
     def next_batch(self, type='training', batch_size=None):
 
@@ -134,18 +157,8 @@ class GtsrbProvider(DatasetProvider):
             }
             self.current_pos = 0
 
-            for root, dirs, files in os.walk(self.data_dir):
-                for f in files:
-                    filepath = os.path.join(root, f)
-
-                    # Load data
-                    data = np.load(filepath)
-                    data = np.reshape(data, [-1, array_size])
-
-                    if f.startswith('training'):
-                        self.pool['training'] = np.append(self.pool['training'], data, axis=0)
-                    elif f.startswith('test'):
-                        self.pool['test'] = np.append(self.pool['test'], data, axis=0)
+            self.pool['training'] = np.load(os.path.join(self.data_dir, 'training.npy'))
+            self.pool['test'] = np.load(os.path.join(self.data_dir, 'test.npy'))
 
             np.random.shuffle(self.pool['training'])
             np.random.shuffle(self.pool['test'])
