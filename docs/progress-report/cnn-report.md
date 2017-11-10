@@ -61,3 +61,8 @@ I tried to equalize the histogram of the original image and used the same archit
 Image size was shrinked to 32x32. After 150k epoch the test accuracy was 89.5%.
 
 ![Test Accuracy and Loss](cnn-report-2.equalized.png)
+
+## Work on MNIST
+
+I went back to MNIST dataset with the same setting as the 1st try, except for the image size was 28x28.
+Eventually I got 97% accuracy.

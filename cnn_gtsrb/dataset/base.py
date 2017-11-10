@@ -98,43 +98,40 @@ class DatasetProvider():
                 im.save(os.path.join(self.data_dir, filename))
                 im.close()
 
-    def next_batch(self, type='training', batch_size=None):
-
-        image_size = self.IMAGE_SIZE * self.IMAGE_SIZE
-        array_size = image_size + 1
+    def next_batch(self, batch_size=None):
 
         if not batch_size:
             batch_size = self.batch_size
 
         if not hasattr(self, 'pool'):
-            self.pool = {
-                'training': np.empty(shape=[0, array_size], dtype=np.uint8),
-                'test': np.empty(shape=[0, array_size], dtype=np.uint8),
-            }
+            self.pool = np.load(os.path.join(self.data_dir, 'training.npy'))
             self.current_pos = 0
+            np.random.shuffle(self.pool)
 
-            self.pool['training'] = np.load(os.path.join(self.data_dir, 'training.npy'))
-            self.pool['test'] = np.load(os.path.join(self.data_dir, 'test.npy'))
-
-            np.random.shuffle(self.pool['training'])
-            np.random.shuffle(self.pool['test'])
-
-        batch = self.pool[type][self.current_pos:(self.current_pos+batch_size)]
+        batch = self.pool[self.current_pos:(self.current_pos+batch_size)]
         if len(batch) < batch_size:
-            batch_ = self.pool[type][0:(batch_size - len(batch))]
+            batch_ = self.pool[0:(batch_size - len(batch))]
             batch = np.append(batch, batch_, axis=0)
             self.current_pos = batch_size - len(batch)
         else:
             self.current_pos += batch_size
 
-        # Cut data to image data and label data
-        images = batch[:, :image_size]
-        labels = batch[:, image_size:]
+        return self.split_images_and_labels(batch)
 
-        # Convert label data to one-hot array
-        one_hot_labels = np.zeros(shape=[labels.shape[0], self.CLASSES], dtype=np.float32)
+    def test_data(self):
+        data = np.load(os.path.join(self.data_dir, 'test.npy'))
+        np.random.shuffle(data)
+
+        return self.split_images_and_labels(data)
+
+    def split_images_and_labels(self, data):
+        # Cut data to image data and label data
+        images = data[:, :-1]
+        labels = data[:, -1:]
+
+        one_hot = np.zeros(shape=[labels.shape[0], self.CLASSES], dtype=np.float32)
         for i in range(labels.shape[0]):
             class_id = labels[i][0]
-            one_hot_labels[i, class_id] = 1
+            one_hot[i, class_id] = 1
+        return (images, one_hot)
 
-        return (images, one_hot_labels)

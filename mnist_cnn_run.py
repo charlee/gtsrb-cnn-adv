@@ -17,12 +17,4 @@ cnn = CNNModel(
     conv_layers=[32, 64],
     fc_layer=1028,
 )
-cnn.train(50000, mnist)
-
-# cnn.test(10000, mnist)
-
-# for i in range(100):
-#     data, label = gtsrb.next_batch('test')
-#     print(data, label)
-
-
+cnn.train(20000, mnist)
