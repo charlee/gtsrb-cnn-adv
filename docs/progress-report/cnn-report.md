@@ -56,3 +56,8 @@ After 200k epoches the final test accuracy was 93.4%.
 
 
 ## Fourth Try
+
+I tried to equalize the histogram of the original image and used the same architecutre as the 3rd try.
+Image size was shrinked to 32x32. After 150k epoch the test accuracy was 89.5%.
+
+![Test Accuracy and Loss](cnn-report-2.equalized.png)
