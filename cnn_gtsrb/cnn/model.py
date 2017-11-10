@@ -32,50 +32,54 @@ class CNNModel():
 
         # Input layer
         with tf.name_scope('input'):
-            x = tf.placeholder(tf.int8, shape=[None, self.image_size * self.image_size], name='raw_input')
+            x = tf.placeholder(tf.uint8, shape=[None, self.image_size * self.image_size], name='raw_input')
 
             # Convert to float32 matrix of [batch_size, self.image_size, self.image_size, color_depth]
-            input = tf.cast(x, tf.float32) * (1. /255) - 0.5
+            input = tf.cast(x, tf.float32) * (1.0 /255) # - 0.5
             input = tf.reshape(input, shape=[-1, self.image_size, self.image_size, 1], name='reshaped_input')
+
+            tf.summary.image('input', input)
 
         with tf.name_scope('cnn'):
             h_pool = input
             prev_layer_features = 1
             layer_size = self.image_size * self.image_size        # size of current layer
 
-            for layer_count, feature_count in enumerate(conv_layers):
+            for i, feature_count in enumerate(conv_layers):
                 # Convolutional Layer
-                W_conv = self.weight_variable(
-                    [kernel_size[0], kernel_size[1], prev_layer_features, feature_count],
-                    name='weight_{}'.format(layer_count+1)
-                )
+                with tf.name_scope('conv_{}'.format(i+1)):
+                    W_conv = self.weight_variable(
+                        [kernel_size[0], kernel_size[1], prev_layer_features, feature_count],
+                        name='weight_{}'.format(i+1)
+                    )
 
-                b_conv = self.bias_variable([feature_count], name='bias_{}'.format(layer_count+1))
-                h_conv = tf.nn.relu(
-                    self.conv2d(h_pool, W_conv) + b_conv, name='conv_{}'.format(layer_count+1)
-                )
+                    b_conv = self.bias_variable([feature_count], name='bias_{}'.format(i+1))
+                    h_conv = tf.nn.relu(self.conv2d(h_pool, W_conv) + b_conv)
 
-                # Pooling Layer #1 => 32 maps, 16x16
-                h_pool = self.max_pool_2x2(h_conv, name='pool_{}'.format(layer_count+1))
+                with tf.name_scope('pool_{}'.format(i+1)):
+                    # Pooling Layer #1 => 32 maps, 16x16
+                    h_pool = self.max_pool_2x2(h_conv)
 
                 prev_layer_features = feature_count
                 layer_size //= 4
 
 
             # Full-connected Layer
-            fc_size = layer_size * prev_layer_features
-            W_fc1 = self.weight_variable([fc_size, fc_layer], name='fc_weight')
-            b_fc1 = self.bias_variable([fc_layer], name='fc_bias')
+            with tf.name_scope('fc1'):
+                fc_size = layer_size * prev_layer_features
+                W_fc1 = self.weight_variable([fc_size, fc_layer], name='fc_weight')
+                b_fc1 = self.bias_variable([fc_layer], name='fc_bias')
 
-            h_drop_flat = tf.reshape(h_pool, [-1, fc_size])
-            h_fc1 = tf.nn.relu(tf.matmul(h_drop_flat, W_fc1) + b_fc1, name='fc1')
+                h_pool_flat = tf.reshape(h_pool, [-1, fc_size])
+                h_fc1 = tf.nn.relu(tf.matmul(h_pool_flat, W_fc1) + b_fc1)
 
-            # Dropout layer => [batch_size x 1024]
-            keep_prob = tf.placeholder(tf.float32)
-            h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+            with tf.name_scope('dropout'):
+                # Dropout layer => [batch_size x 1024]
+                keep_prob = tf.placeholder(tf.float32)
+                h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
 
-        with tf.name_scope('output'):
+        with tf.name_scope('fc2'):
             # Readout layer
             W_fc2 = self.weight_variable([fc_layer, self.classes], name='fc_readout')
             b_fc2 = self.bias_variable([self.classes], name='bias_readout')
@@ -85,12 +89,12 @@ class CNNModel():
         # Label
         y_ = tf.placeholder(tf.float32, shape=[None, self.classes], name="labels")
 
-        with tf.name_scope('cross_entrophy'):
+        with tf.name_scope('loss'):
             # Loss function
             cross_entrophy = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv)
             )
-            tf.summary.scalar('cross_entrophy', cross_entrophy)
+            tf.summary.scalar('cross_entrophy_mean', cross_entrophy)
 
         with tf.name_scope('accuracy'):
             correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
@@ -146,7 +150,7 @@ class CNNModel():
                     self.save_train_summary(sess, batch)
 
                 if i % 1000 == 0:
-                    test_batch = data_provider.next_batch('test', 3000)
+                    test_batch = data_provider.test_data()
                     self.save_test_summary(sess, test_batch)
 
 
@@ -167,7 +171,7 @@ class CNNModel():
             self.restore_model(sess)
 
             # Evaluate the trainned model
-            test_batch = data_provider.next_batch(type='test', batch_size=batch_size)
+            test_batch = data_provider.test_data()
             test_accuracy = self.accuracy.eval(
                 feed_dict={self.x: test_batch[0], self.y_: test_batch[1], self.keep_prob: 1.0})
             print('test accuracy: {}'.format(test_accuracy))
@@ -231,8 +235,8 @@ class CNNModel():
     def conv2d(self, x, W):
         return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
-    def max_pool_2x2(self, x, name=None):
+    def max_pool_2x2(self, x):
         return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
-                              strides=[1, 2, 2, 1], padding='SAME', name=name)
+                              strides=[1, 2, 2, 1], padding='SAME')
 
 

@@ -12,6 +12,4 @@ CLASSES = 43
 
 # Data temporary directory
 DATA_TEMP_GTSRB = os.path.join(BASE_DIR, 'tmp', 'gtsrb_data')
-
-# Directory for temporary files during the model training
-MODEL_DIR = os.path.join(BASE_DIR, 'tmp', 'gtsrb_cnn_model')
+DATA_TEMP_MNIST = os.path.join(BASE_DIR, 'tmp', 'mnist_data')

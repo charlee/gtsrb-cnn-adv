@@ -1,11 +1,10 @@
 import os
-import math
 import shutil
 import logging
 import csv
 import numpy as np
 import cnn_gtsrb.settings as settings
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image, ImageOps
 from .base import DatasetProvider
 
 
@@ -143,82 +142,3 @@ class GtsrbProvider(DatasetProvider):
 
         all = np.concatenate(all_dataset, axis=0)
         all.dump(os.path.join(self.data_dir, '{}.npy'.format(prefix)))
-
-    def dump_images(self):
-        """Dump npy data into png images."""
-        for t in ('training', 'test'):
-            filepath = os.path.join(self.data_dir, '{}.npy'.format(t))
-            print('Dumping images from {}...'.format(filepath))
-            images = np.load(filepath)
-
-            # Sort images by label (the last field on axis 1)
-            images = images[np.argsort(images[:,-1])]
-            labels = images[:,-1]
-
-            for class_id in range(self.CLASSES):
-                images_in_class = images[(labels == class_id), :-1]
-                canvas_width = self.IMAGE_SIZE * 10
-                canvas_height = self.IMAGE_SIZE * math.ceil(images_in_class.shape[0] / 10) + 30
-
-                im = Image.new('L', (canvas_width, canvas_height))
-                d = ImageDraw.Draw(im)
-                d.text((10, 10), 'Class = {}'.format(class_id), fill=255)
-                del d
-
-                for idx in range(images_in_class.shape[0]):
-                    image = images_in_class[idx]
-                    image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE])
-                    im2 = Image.fromarray(image)
-
-                    x = idx % 10 * self.IMAGE_SIZE
-                    y = idx // 10 * self.IMAGE_SIZE + 30
-
-                    im.paste(im2, (x, y))
-                    im2.close()
-
-                filename = '{}-dump.class{}.png'.format(t, class_id)
-                print('Dumpping ({}, {}) to {}'.format(t, class_id, filename))
-                im.save(os.path.join(self.data_dir, filename))
-                im.close()
-
-    def next_batch(self, type='training', batch_size=None):
-
-        image_size = self.IMAGE_SIZE * self.IMAGE_SIZE
-        array_size = image_size + 1
-
-        if not batch_size:
-            batch_size = self.batch_size
-
-        if not hasattr(self, 'pool'):
-            self.pool = {
-                'training': np.empty(shape=[0, array_size], dtype=np.uint8),
-                'test': np.empty(shape=[0, array_size], dtype=np.uint8),
-            }
-            self.current_pos = 0
-
-            self.pool['training'] = np.load(os.path.join(self.data_dir, 'training.npy'))
-            self.pool['test'] = np.load(os.path.join(self.data_dir, 'test.npy'))
-
-            np.random.shuffle(self.pool['training'])
-            np.random.shuffle(self.pool['test'])
-
-        batch = self.pool[type][self.current_pos:(self.current_pos+batch_size)]
-        if len(batch) < batch_size:
-            batch_ = self.pool[type][0:(batch_size - len(batch))]
-            batch = np.append(batch, batch_, axis=0)
-            self.current_pos = batch_size - len(batch)
-        else:
-            self.current_pos += batch_size
-
-        # Cut data to image data and label data
-        images = batch[:, :image_size]
-        labels = batch[:, image_size:]
-
-        # Convert label data to one-hot array
-        one_hot_labels = np.zeros(shape=[labels.shape[0], self.CLASSES], dtype=np.float32)
-        for i in range(labels.shape[0]):
-            class_id = labels[i][0]
-            one_hot_labels[i, class_id] = 1
-
-        return (images, one_hot_labels)
-

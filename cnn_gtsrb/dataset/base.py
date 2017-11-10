@@ -1,7 +1,10 @@
 import os
 import sys
+import math
 import zipfile
+import numpy as np
 import urllib.request
+from PIL import Image, ImageDraw
 
 
 class DatasetProvider():
@@ -57,3 +60,78 @@ class DatasetProvider():
                 self.download(url, local_file)
             os.makedirs(data_dir)
             self.unzip(local_file, data_dir)
+
+    def dump_images(self):
+        """Dump npy data into png images."""
+        for t in ('training', 'test'):
+            filepath = os.path.join(self.data_dir, '{}.npy'.format(t))
+            print('Dumping images from {}...'.format(filepath))
+            images = np.load(filepath)
+
+            # Sort images by label (the last field on axis 1)
+            images = images[np.argsort(images[:,-1])]
+            labels = images[:,-1]
+
+            for class_id in range(self.CLASSES):
+                images_in_class = images[(labels == class_id), :-1]
+                canvas_width = self.IMAGE_SIZE * 10
+                canvas_height = self.IMAGE_SIZE * math.ceil(images_in_class.shape[0] / 10) + 30
+
+                im = Image.new('L', (canvas_width, canvas_height))
+                d = ImageDraw.Draw(im)
+                d.text((10, 10), 'Class = {}'.format(class_id), fill=255)
+                del d
+
+                for idx in range(images_in_class.shape[0]):
+                    image = images_in_class[idx]
+                    image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE])
+                    im2 = Image.fromarray(image)
+
+                    x = idx % 10 * self.IMAGE_SIZE
+                    y = idx // 10 * self.IMAGE_SIZE + 30
+
+                    im.paste(im2, (x, y))
+                    im2.close()
+
+                filename = '{}-dump.class{}.png'.format(t, class_id)
+                print('Dumpping ({}, {}) to {}'.format(t, class_id, filename))
+                im.save(os.path.join(self.data_dir, filename))
+                im.close()
+
+    def next_batch(self, batch_size=None):
+
+        if not batch_size:
+            batch_size = self.batch_size
+
+        if not hasattr(self, 'pool'):
+            self.pool = np.load(os.path.join(self.data_dir, 'training.npy'))
+            self.current_pos = 0
+            np.random.shuffle(self.pool)
+
+        batch = self.pool[self.current_pos:(self.current_pos+batch_size)]
+        if len(batch) < batch_size:
+            batch_ = self.pool[0:(batch_size - len(batch))]
+            batch = np.append(batch, batch_, axis=0)
+            self.current_pos = batch_size - len(batch)
+        else:
+            self.current_pos += batch_size
+
+        return self.split_images_and_labels(batch)
+
+    def test_data(self):
+        data = np.load(os.path.join(self.data_dir, 'test.npy'))
+        np.random.shuffle(data)
+
+        return self.split_images_and_labels(data)
+
+    def split_images_and_labels(self, data):
+        # Cut data to image data and label data
+        images = data[:, :-1]
+        labels = data[:, -1:]
+
+        one_hot = np.zeros(shape=[labels.shape[0], self.CLASSES], dtype=np.float32)
+        for i in range(labels.shape[0]):
+            class_id = labels[i][0]
+            one_hot[i, class_id] = 1
+        return (images, one_hot)
+
