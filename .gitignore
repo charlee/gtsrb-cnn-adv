@@ -3,6 +3,7 @@
 
 # PyCharm
 .idea/
+.vscode/
 
 # Data
 tmp/

@@ -146,7 +146,7 @@ class CNNModel():
                     self.save_train_summary(sess, batch)
 
                 if i % 1000 == 0:
-                    test_batch = data_provider.next_batch('test', 1000)
+                    test_batch = data_provider.next_batch('test', 3000)
                     self.save_test_summary(sess, test_batch)
 
 

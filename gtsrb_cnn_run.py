@@ -7,6 +7,7 @@ from cnn_gtsrb.cnn.model import CNNModel
 tf.logging.set_verbosity(tf.logging.INFO)
 
 gtsrb = GtsrbProvider()
+gtsrb.dump_images()
 
 cnn = CNNModel(
     image_size=gtsrb.IMAGE_SIZE,
@@ -16,7 +17,7 @@ cnn = CNNModel(
     conv_layers=[32, 64, 128],
     fc_layer=512,
 )
-cnn.train(45000, gtsrb)
+cnn.train(150000, gtsrb)
 
 #cnn.test(2000, gtsrb)
 
