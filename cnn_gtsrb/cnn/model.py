@@ -32,16 +32,11 @@ class CNNModel():
 
         # Input layer
         with tf.name_scope('input'):
-            x = tf.placeholder(tf.uint8, shape=[None, self.image_size * self.image_size], name='raw_input')
-
-            # Convert to float32 matrix of [batch_size, self.image_size, self.image_size, color_depth]
-            input = tf.cast(x, tf.float32) * (1.0 /255) # - 0.5
-            input = tf.reshape(input, shape=[-1, self.image_size, self.image_size, 1], name='reshaped_input')
-
-            tf.summary.image('input', input)
+            x = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, 1], name='x')
+            tf.summary.image('input', x)
 
         with tf.name_scope('cnn'):
-            h_pool = input
+            h_pool = x
             prev_layer_features = 1
             layer_size = self.image_size * self.image_size        # size of current layer
 
@@ -79,12 +74,12 @@ class CNNModel():
                 h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
 
-        with tf.name_scope('fc2'):
-            # Readout layer
-            W_fc2 = self.weight_variable([fc_layer, self.classes], name='fc_readout')
-            b_fc2 = self.bias_variable([self.classes], name='bias_readout')
+            with tf.name_scope('fc2'):
+                # Readout layer
+                W_fc2 = self.weight_variable([fc_layer, self.classes], name='fc_readout')
+                b_fc2 = self.bias_variable([self.classes], name='bias_readout')
 
-            y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+                y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
         # Label
         y_ = tf.placeholder(tf.float32, shape=[None, self.classes], name="labels")
