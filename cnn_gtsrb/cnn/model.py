@@ -27,24 +27,24 @@ class CNNModel():
 
         self.image_size = image_size
         self.classes = classes
+        self.conv_layers = conv_layers
+        self.fc_layer = fc_layer
+        self.kernel_size = kernel_size
         self.model_name = model_name
         self.model_dir = model_dir
 
-        # Input layer
-        with tf.name_scope('input'):
-            x = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, 1], name='x')
-            tf.summary.image('input', x)
+    def make_model(self, x, y):
 
         with tf.name_scope('cnn'):
             h_pool = x
             prev_layer_features = 1
             layer_size = self.image_size * self.image_size        # size of current layer
 
-            for i, feature_count in enumerate(conv_layers):
+            for i, feature_count in enumerate(self.conv_layers):
                 # Convolutional Layer
                 with tf.name_scope('conv_{}'.format(i+1)):
                     W_conv = self.weight_variable(
-                        [kernel_size[0], kernel_size[1], prev_layer_features, feature_count],
+                        [self.kernel_size[0], self.kernel_size[1], prev_layer_features, feature_count],
                         name='weight_{}'.format(i+1)
                     )
 
@@ -62,8 +62,8 @@ class CNNModel():
             # Full-connected Layer
             with tf.name_scope('fc1'):
                 fc_size = layer_size * prev_layer_features
-                W_fc1 = self.weight_variable([fc_size, fc_layer], name='fc_weight')
-                b_fc1 = self.bias_variable([fc_layer], name='fc_bias')
+                W_fc1 = self.weight_variable([fc_size, self.fc_layer], name='fc_weight')
+                b_fc1 = self.bias_variable([self.fc_layer], name='fc_bias')
 
                 h_pool_flat = tf.reshape(h_pool, [-1, fc_size])
                 h_fc1 = tf.nn.relu(tf.matmul(h_pool_flat, W_fc1) + b_fc1)
@@ -76,30 +76,28 @@ class CNNModel():
 
             with tf.name_scope('fc2'):
                 # Readout layer
-                W_fc2 = self.weight_variable([fc_layer, self.classes], name='fc_readout')
+                W_fc2 = self.weight_variable([self.fc_layer, self.classes], name='fc_readout')
                 b_fc2 = self.bias_variable([self.classes], name='bias_readout')
 
-                y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+                probs = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
         # Label
-        y_ = tf.placeholder(tf.float32, shape=[None, self.classes], name="labels")
-
         with tf.name_scope('loss'):
             # Loss function
             cross_entrophy = tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv)
+                tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=probs)
             )
             tf.summary.scalar('cross_entrophy_mean', cross_entrophy)
 
         with tf.name_scope('accuracy'):
-            correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
+            correct_prediction = tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             tf.summary.scalar('accuracy', accuracy)
 
         self.x = x
-        self.y_ = y_
+        self.y = y
         self.keep_prob = keep_prob
-        self.y_conv = y_conv
+        self.probs = probs
         self.cross_entrophy = cross_entrophy
         self.accuracy = accuracy
 
@@ -148,7 +146,7 @@ class CNNModel():
             batch = data_provider.next_batch()
 
             train_step.run(
-                feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 0.5},
+                feed_dict={self.x: batch[0], self.y: batch[1], self.keep_prob: 0.5},
                 session=self.sess
             )
 
@@ -180,7 +178,7 @@ class CNNModel():
         # Evaluate the trainned model
         test_batch = data_provider.test_data()
         test_accuracy = self.accuracy.eval(
-            feed_dict={self.x: test_batch[0], self.y_: test_batch[1], self.keep_prob: 1.0},
+            feed_dict={self.x: test_batch[0], self.y: test_batch[1], self.keep_prob: 1.0},
             session=self.sess)
         print('test accuracy: {}'.format(test_accuracy))
 
@@ -191,7 +189,7 @@ class CNNModel():
         step = global_step.eval(self.sess)
 
         summary, train_accuracy = self.sess.run([self.merged, self.accuracy],
-            feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+            feed_dict={self.x: batch[0], self.y: batch[1], self.keep_prob: 1.0})
         self.train_summary_writer.add_summary(summary, step)
         print('Step {}, training accuracy={}'.format(step, train_accuracy))
 
@@ -201,7 +199,7 @@ class CNNModel():
         step = global_step.eval(self.sess)
 
         summary, test_accuracy = self.sess.run([self.merged, self.accuracy],
-                                           feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+                                           feed_dict={self.x: batch[0], self.y: batch[1], self.keep_prob: 1.0})
         self.test_summary_writer.add_summary(summary, step)
         print('Step {}, test accuracy={}'.format(step, test_accuracy))
 

@@ -12,13 +12,18 @@ gtsrb = GtsrbProvider()
 cnn = CNNModel(
     image_size=gtsrb.IMAGE_SIZE,
     classes=gtsrb.CLASSES,
-    model_name='gtsrb-32x32',
-    model_dir='tmp/gtsrb_model-32x32',
+    model_name='gtsrb-32x32.1',
+    model_dir='tmp/gtsrb_model-32x32.1',
     conv_layers=[32, 64],
     fc_layer=1024,
 )
+
+x = tf.placeholder(tf.float32, shape=[None, gtsrb.IMAGE_SIZE, gtsrb.IMAGE_SIZE, 1], name='x')
+y = tf.placeholder(tf.float32, shape=[None, gtsrb.CLASSES], name="labels")
+
+cnn.make_model(x, y)
 cnn.start_session()
-cnn.train(200, gtsrb)
+cnn.train(2000, gtsrb)
 # cnn.test(gtsrb)
 cnn.end_session()
 
