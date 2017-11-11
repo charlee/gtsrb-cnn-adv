@@ -19,11 +19,10 @@ cnn = CNNModel(
 )
 
 x, y = cnn.make_inputs()
-
-cnn.make_model(x, y)
+probs = cnn.make_model(x)
 
 cnn.start_session()
-cnn.train(400, gtsrb)
+cnn.train(probs, x, y, 400, gtsrb)
 # cnn.test(gtsrb)
 cnn.end_session()
 

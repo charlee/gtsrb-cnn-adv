@@ -12,11 +12,18 @@ mnist = MnistProvider()
 cnn = CNNModel(
     image_size=mnist.IMAGE_SIZE,
     classes=mnist.CLASSES,
-    model_name='mnist-28x28',
-    model_dir='tmp/mnist_model-28x28',
+    model_name='mnist-28x28.1',
+    model_dir='tmp/mnist_model-28x28.1',
     conv_layers=[32, 64],
-    fc_layer=1028,
+    fc_layer=1024,
 )
+
+x, y = cnn.make_inputs()
+
+probs = cnn.make_model(x)
+
 cnn.start_session()
-cnn.train(20000, mnist)
+cnn.train(probs, x, y, 400, mnist)
+# cnn.test(gtsrb)
 cnn.end_session()
+
