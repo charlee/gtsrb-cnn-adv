@@ -17,7 +17,10 @@ cnn = CNNModel(
     conv_layers=[32, 64],
     fc_layer=1024,
 )
-cnn.train(20000, gtsrb)
+cnn.start_session()
+cnn.train(200, gtsrb)
+# cnn.test(gtsrb)
+cnn.end_session()
 
 #cnn.test(2000, gtsrb)
 

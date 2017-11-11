@@ -17,4 +17,6 @@ cnn = CNNModel(
     conv_layers=[32, 64],
     fc_layer=1028,
 )
+cnn.start_session()
 cnn.train(20000, mnist)
+cnn.end_session()

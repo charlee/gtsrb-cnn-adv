@@ -112,6 +112,13 @@ class CNNModel():
 
         tf.train.create_global_step()
 
+    def start_session(self):
+        """Start a session that will be used for training."""
+        self.sess = tf.Session()
+        return self.sess
+
+    def end_session(self):
+        self.sess.close()
 
     def train(self, epoch, data_provider):
         """Train the model with given data.
@@ -126,80 +133,86 @@ class CNNModel():
         with tf.name_scope('train'):
             train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
 
-        with tf.Session() as sess:
-            # Summary writers
-            train_summary_dir = os.path.join(self.model_dir, 'training')
-            test_summary_dir = os.path.join(self.model_dir, 'test')
-            if not os.path.isdir(train_summary_dir):
-                os.makedirs(train_summary_dir)
-            self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
-            self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, sess.graph)
+        if not self.sess:
+            self.start_session()
 
-            sess.run(tf.global_variables_initializer())
+        # Summary writers
+        train_summary_dir = os.path.join(self.model_dir, 'training')
+        test_summary_dir = os.path.join(self.model_dir, 'test')
+        if not os.path.isdir(train_summary_dir):
+            os.makedirs(train_summary_dir)
+        self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, self.sess.graph)
+        self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, self.sess.graph)
 
-            # Restore the model
-            self.restore_model(sess)
+        self.sess.run(tf.global_variables_initializer())
 
-            for i in range(epoch):
-                batch = data_provider.next_batch()
+        # Restore the model
+        self.restore_model()
 
-                train_step.run(
-                    feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 0.5})
+        for i in range(epoch):
+            batch = data_provider.next_batch()
 
-                if i % 100 == 0:
-                    self.save_train_summary(sess, batch)
+            train_step.run(
+                feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 0.5},
+                session=self.sess
+            )
 
-                if i % 1000 == 0:
-                    test_batch = data_provider.test_data()
-                    self.save_test_summary(sess, test_batch)
+            if i % 100 == 0:
+                self.save_train_summary(batch)
+
+            if i % 1000 == 0:
+                test_batch = data_provider.test_data()
+                self.save_test_summary(test_batch)
+
+        # Save the model
+        self.save_model()
 
 
-            # Save the model
-            self.save_model(sess)
-
-
-    def test(self, batch_size, data_provider):
+    def test(self, data_provider):
         if not issubclass(data_provider.__class__, DatasetProvider):
             raise TypeError('data_provider must be a subclass of DatasetProvider')
 
-        logger.info('Testing model with {} data...'.format(batch_size))
+        logger.info('Testing model ...')
 
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
+        if not self.sess:
+            self.start_session()
 
-            # Restore the model
-            self.restore_model(sess)
+        self.sess.run(tf.global_variables_initializer())
 
-            # Evaluate the trainned model
-            test_batch = data_provider.test_data()
-            test_accuracy = self.accuracy.eval(
-                feed_dict={self.x: test_batch[0], self.y_: test_batch[1], self.keep_prob: 1.0})
-            print('test accuracy: {}'.format(test_accuracy))
+        # Restore the model
+        self.restore_model()
+
+        # Evaluate the trainned model
+        test_batch = data_provider.test_data()
+        test_accuracy = self.accuracy.eval(
+            feed_dict={self.x: test_batch[0], self.y_: test_batch[1], self.keep_prob: 1.0},
+            session=self.sess)
+        print('test accuracy: {}'.format(test_accuracy))
 
 
-    def save_train_summary(self, sess, batch):
+    def save_train_summary(self, batch):
         """Save traning summary data (accuracy, cross_entrophy) to model dir."""
         global_step = tf.train.get_global_step()
-        step = global_step.eval(sess)
+        step = global_step.eval(self.sess)
 
-        summary, train_accuracy = sess.run([self.merged, self.accuracy],
+        summary, train_accuracy = self.sess.run([self.merged, self.accuracy],
             feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
         self.train_summary_writer.add_summary(summary, step)
         print('Step {}, training accuracy={}'.format(step, train_accuracy))
 
-    def save_test_summary(self, sess, batch):
+    def save_test_summary(self, batch):
         """Save test summary data (accuracy, cross_entrophy) to model dir."""
         global_step = tf.train.get_global_step()
-        step = global_step.eval(sess)
+        step = global_step.eval(self.sess)
 
-        summary, test_accuracy = sess.run([self.merged, self.accuracy],
+        summary, test_accuracy = self.sess.run([self.merged, self.accuracy],
                                            feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
         self.test_summary_writer.add_summary(summary, step)
         print('Step {}, test accuracy={}'.format(step, test_accuracy))
 
 
 
-    def save_model(self, sess):
+    def save_model(self):
         saver = tf.train.Saver()
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
@@ -209,19 +222,19 @@ class CNNModel():
 
         global_step = tf.train.get_global_step()
 
-        save_path = saver.save(sess, ckpt_path, global_step=global_step)
+        save_path = saver.save(self.sess, ckpt_path, global_step=global_step)
         logger.info('Model saved as {}.'.format(save_path))
 
-    def restore_model(self, sess):
+    def restore_model(self):
         saver = tf.train.Saver()
 
         save_path = tf.train.latest_checkpoint(self.model_dir)
         if save_path:
-            saver.restore(sess, save_path)
+            saver.restore(self.sess, save_path)
 
             global_step = tf.train.get_global_step()
 
-            logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(sess)))
+            logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(self.sess)))
 
 
     def weight_variable(self, shape, name):
