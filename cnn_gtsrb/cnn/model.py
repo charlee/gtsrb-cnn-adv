@@ -88,10 +88,10 @@ class CNNModel(Model):
         return probs
 
     def fprop(self, x):
-        self.make_model(x, self.y)
+        probs = self.make_model(x)
         return {
-            'probs': self.probs,
-            'logits': self.probs,
+            'probs': probs,
+            'logits': probs,
         }
     
     def start_session(self):
@@ -153,19 +153,35 @@ class CNNModel(Model):
                 )
 
                 if i % 100 == 0:
-                    self.test(accuracy, x, y, batch, name='train_accuracy')
+                    self.calculate_accuracy(accuracy, x, y, batch, name='train_accuracy')
 
                 if i % 1000 == 0:
-                    self.test(accuracy, x, y, data_provider.test_data(), name='test_accuracy')
+                    self.calculate_accuracy(accuracy, x, y, data_provider.test_data(), name='test_accuracy')
 
             # Save the model
             self.save_model()
 
 
-    def test(self, accuracy, x, y, batch, name):
-
+    def calculate_accuracy(self, accuracy, x, y, batch, name):
         accuracy_value = self.sess.run(accuracy, {x: batch[0], y: batch[1]})
         print('{} = {}'.format(name, accuracy_value))
+
+
+    def test(self, probs, x, y, data_provider):
+        with self.sess.as_default():
+
+            global_step = self.create_global_step()
+            batch = data_provider.test_data()
+
+            # Accuracy
+            accuracy = tf.reduce_mean(
+                tf.cast(tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1)), tf.float32)
+            )
+
+            self.sess.run(tf.global_variables_initializer())
+            self.restore_model()
+
+            self.calculate_accuracy(accuracy, x, y, batch, name='test_accuracy')
 
 
     def save_model(self):
