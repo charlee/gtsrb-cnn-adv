@@ -33,81 +33,94 @@ class CNNModel():
         self.model_name = model_name
         self.model_dir = model_dir
 
+        self.params = {}
+
+        self.graph = tf.Graph()
+
+    def make_inputs(self):
+        with self.graph.as_default():
+            x = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, 1], name='x')
+            y = tf.placeholder(tf.float32, shape=[None, self.classes], name="y")
+
+        return x, y
+
     def make_model(self, x, y):
 
-        with tf.name_scope('cnn'):
-            h_pool = x
-            prev_layer_features = 1
-            layer_size = self.image_size * self.image_size        # size of current layer
+        with self.graph.as_default():
 
-            for i, feature_count in enumerate(self.conv_layers):
-                # Convolutional Layer
-                with tf.name_scope('conv_{}'.format(i+1)):
-                    W_conv = self.weight_variable(
-                        [self.kernel_size[0], self.kernel_size[1], prev_layer_features, feature_count],
-                        name='weight_{}'.format(i+1)
-                    )
+            with tf.name_scope('cnn'):
+                h_pool = x
+                prev_layer_features = 1
+                layer_size = self.image_size * self.image_size        # size of current layer
 
-                    b_conv = self.bias_variable([feature_count], name='bias_{}'.format(i+1))
-                    h_conv = tf.nn.relu(self.conv2d(h_pool, W_conv) + b_conv)
+                for i, feature_count in enumerate(self.conv_layers):
+                    # Convolutional Layer
+                    with tf.name_scope('conv_{}'.format(i+1)):
+                        W_conv = self.weight_variable(
+                            [self.kernel_size[0], self.kernel_size[1], prev_layer_features, feature_count],
+                            name='weight_{}'.format(i+1)
+                        )
 
-                with tf.name_scope('pool_{}'.format(i+1)):
-                    # Pooling Layer #1 => 32 maps, 16x16
-                    h_pool = self.max_pool_2x2(h_conv)
+                        b_conv = self.bias_variable([feature_count], name='bias_{}'.format(i+1))
+                        h_conv = tf.nn.relu(self.conv2d(h_pool, W_conv) + b_conv)
 
-                prev_layer_features = feature_count
-                layer_size //= 4
+                    with tf.name_scope('pool_{}'.format(i+1)):
+                        # Pooling Layer #1 => 32 maps, 16x16
+                        h_pool = self.max_pool_2x2(h_conv)
 
-
-            # Full-connected Layer
-            with tf.name_scope('fc1'):
-                fc_size = layer_size * prev_layer_features
-                W_fc1 = self.weight_variable([fc_size, self.fc_layer], name='fc_weight')
-                b_fc1 = self.bias_variable([self.fc_layer], name='fc_bias')
-
-                h_pool_flat = tf.reshape(h_pool, [-1, fc_size])
-                h_fc1 = tf.nn.relu(tf.matmul(h_pool_flat, W_fc1) + b_fc1)
-
-            with tf.name_scope('dropout'):
-                # Dropout layer => [batch_size x 1024]
-                keep_prob = tf.placeholder(tf.float32)
-                h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+                    prev_layer_features = feature_count
+                    layer_size //= 4
 
 
-            with tf.name_scope('fc2'):
-                # Readout layer
-                W_fc2 = self.weight_variable([self.fc_layer, self.classes], name='fc_readout')
-                b_fc2 = self.bias_variable([self.classes], name='bias_readout')
+                # Full-connected Layer
+                with tf.name_scope('fc1'):
+                    fc_size = layer_size * prev_layer_features
+                    W_fc1 = self.weight_variable([fc_size, self.fc_layer], name='fc_weight')
+                    b_fc1 = self.bias_variable([self.fc_layer], name='fc_bias')
 
-                probs = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+                    h_pool_flat = tf.reshape(h_pool, [-1, fc_size])
+                    h_fc1 = tf.nn.relu(tf.matmul(h_pool_flat, W_fc1) + b_fc1)
 
-        # Label
-        with tf.name_scope('loss'):
-            # Loss function
-            cross_entrophy = tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=probs)
-            )
-            tf.summary.scalar('cross_entrophy_mean', cross_entrophy)
+                with tf.name_scope('dropout'):
+                    # Dropout layer => [batch_size x 1024]
+                    keep_prob = tf.placeholder(tf.float32)
+                    h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
-        with tf.name_scope('accuracy'):
-            correct_prediction = tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1))
-            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            tf.summary.scalar('accuracy', accuracy)
 
-        self.x = x
-        self.y = y
-        self.keep_prob = keep_prob
-        self.probs = probs
-        self.cross_entrophy = cross_entrophy
-        self.accuracy = accuracy
+                with tf.name_scope('fc2'):
+                    # Readout layer
+                    W_fc2 = self.weight_variable([self.fc_layer, self.classes], name='fc_readout')
+                    b_fc2 = self.bias_variable([self.classes], name='bias_readout')
 
-        self.merged = tf.summary.merge_all()
+                    probs = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
-        tf.train.create_global_step()
+            # Label
+            with tf.name_scope('loss'):
+                # Loss function
+                cross_entrophy = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=probs)
+                )
+                tf.summary.scalar('cross_entrophy_mean', cross_entrophy)
+
+            with tf.name_scope('accuracy'):
+                correct_prediction = tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1))
+                accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+                tf.summary.scalar('accuracy', accuracy)
+
+            self.x = x
+            self.y = y
+            self.keep_prob = keep_prob
+            self.probs = probs
+            self.cross_entrophy = cross_entrophy
+            self.accuracy = accuracy
+
+            self.merged = tf.summary.merge_all()
+
+            self.params['global_step'] = tf.train.create_global_step()
 
     def start_session(self):
         """Start a session that will be used for training."""
-        self.sess = tf.Session()
+        self.sess = tf.Session(graph=self.graph)
         return self.sess
 
     def end_session(self):
@@ -121,44 +134,44 @@ class CNNModel():
         if not issubclass(data_provider.__class__, DatasetProvider):
             raise TypeError('data_provider must be a subclass of DatasetProvider')
 
-        global_step = tf.train.get_global_step()
+        with self.graph.as_default():
+            with self.sess.as_default():
 
-        with tf.name_scope('train'):
-            train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
+                global_step = tf.train.get_global_step()
 
-        if not self.sess:
-            self.start_session()
+                with tf.name_scope('train'):
+                    train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
 
-        # Summary writers
-        train_summary_dir = os.path.join(self.model_dir, 'training')
-        test_summary_dir = os.path.join(self.model_dir, 'test')
-        if not os.path.isdir(train_summary_dir):
-            os.makedirs(train_summary_dir)
-        self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, self.sess.graph)
-        self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, self.sess.graph)
+                # Summary writers
+                train_summary_dir = os.path.join(self.model_dir, 'training')
+                test_summary_dir = os.path.join(self.model_dir, 'test')
+                if not os.path.isdir(train_summary_dir):
+                    os.makedirs(train_summary_dir)
+                self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, self.sess.graph)
+                self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, self.sess.graph)
 
-        self.sess.run(tf.global_variables_initializer())
+                self.sess.run(tf.global_variables_initializer())
 
-        # Restore the model
-        self.restore_model()
+                # Restore the model
+                self.restore_model()
 
-        for i in range(epoch):
-            batch = data_provider.next_batch()
+                for i in range(epoch):
+                    batch = data_provider.next_batch()
 
-            train_step.run(
-                feed_dict={self.x: batch[0], self.y: batch[1], self.keep_prob: 0.5},
-                session=self.sess
-            )
+                    train_step.run(
+                        feed_dict={self.x: batch[0], self.y: batch[1], self.keep_prob: 0.5},
+                        session=self.sess
+                    )
 
-            if i % 100 == 0:
-                self.save_train_summary(batch)
+                    if i % 100 == 0:
+                        self.save_train_summary(batch)
 
-            if i % 1000 == 0:
-                test_batch = data_provider.test_data()
-                self.save_test_summary(test_batch)
+                    if i % 1000 == 0:
+                        test_batch = data_provider.test_data()
+                        self.save_test_summary(test_batch)
 
-        # Save the model
-        self.save_model()
+                # Save the model
+                self.save_model()
 
 
     def test(self, data_provider):
@@ -206,7 +219,7 @@ class CNNModel():
 
 
     def save_model(self):
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(self.params)
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
 
@@ -219,7 +232,7 @@ class CNNModel():
         logger.info('Model saved as {}.'.format(save_path))
 
     def restore_model(self):
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(self.params)
 
         save_path = tf.train.latest_checkpoint(self.model_dir)
         if save_path:
@@ -232,11 +245,13 @@ class CNNModel():
 
     def weight_variable(self, shape, name):
         initial = tf.truncated_normal(shape, stddev=0.1)
-        return tf.Variable(initial, name=name)
+        self.params[name] = tf.Variable(initial, name=name)
+        return self.params[name]
 
     def bias_variable(self, shape, name):
         initial = tf.constant(0.1, shape=shape)
-        return tf.Variable(initial, name=name)
+        self.params[name] = tf.Variable(initial, name=name)
+        return self.params[name]
 
     def conv2d(self, x, W):
         return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')

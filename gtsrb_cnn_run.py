@@ -18,12 +18,12 @@ cnn = CNNModel(
     fc_layer=1024,
 )
 
-x = tf.placeholder(tf.float32, shape=[None, gtsrb.IMAGE_SIZE, gtsrb.IMAGE_SIZE, 1], name='x')
-y = tf.placeholder(tf.float32, shape=[None, gtsrb.CLASSES], name="labels")
+x, y = cnn.make_inputs()
 
 cnn.make_model(x, y)
+
 cnn.start_session()
-cnn.train(2000, gtsrb)
+cnn.train(400, gtsrb)
 # cnn.test(gtsrb)
 cnn.end_session()
 
