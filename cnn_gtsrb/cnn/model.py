@@ -1,13 +1,14 @@
 import os
 import logging
 import tensorflow as tf
+from cleverhans.model import Model
 from cnn_gtsrb.dataset.base import DatasetProvider
 
 
 logger = logging.getLogger('cnn')
 
 
-class CNNModel():
+class CNNModel(Model):
 
     def __init__(self, image_size, classes, model_name, model_dir,
                  kernel_size=[5, 5],
@@ -27,29 +28,32 @@ class CNNModel():
 
         self.image_size = image_size
         self.classes = classes
+        self.conv_layers = conv_layers
+        self.fc_layer = fc_layer
+        self.kernel_size = kernel_size
         self.model_name = model_name
         self.model_dir = model_dir
 
-        # Input layer
-        with tf.name_scope('input'):
-            x = tf.placeholder(tf.uint8, shape=[None, self.image_size * self.image_size], name='raw_input')
+        self.params = {}
 
-            # Convert to float32 matrix of [batch_size, self.image_size, self.image_size, color_depth]
-            input = tf.cast(x, tf.float32) * (1.0 /255) # - 0.5
-            input = tf.reshape(input, shape=[-1, self.image_size, self.image_size, 1], name='reshaped_input')
+    def make_inputs(self):
+        x = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, 1], name='x')
+        y = tf.placeholder(tf.float32, shape=[None, self.classes], name="y")
 
-            tf.summary.image('input', input)
+        return x, y
+
+    def make_model(self, x):
 
         with tf.name_scope('cnn'):
-            h_pool = input
+            h_pool = x
             prev_layer_features = 1
             layer_size = self.image_size * self.image_size        # size of current layer
 
-            for i, feature_count in enumerate(conv_layers):
+            for i, feature_count in enumerate(self.conv_layers):
                 # Convolutional Layer
                 with tf.name_scope('conv_{}'.format(i+1)):
                     W_conv = self.weight_variable(
-                        [kernel_size[0], kernel_size[1], prev_layer_features, feature_count],
+                        [self.kernel_size[0], self.kernel_size[1], prev_layer_features, feature_count],
                         name='weight_{}'.format(i+1)
                     )
 
@@ -67,53 +71,47 @@ class CNNModel():
             # Full-connected Layer
             with tf.name_scope('fc1'):
                 fc_size = layer_size * prev_layer_features
-                W_fc1 = self.weight_variable([fc_size, fc_layer], name='fc_weight')
-                b_fc1 = self.bias_variable([fc_layer], name='fc_bias')
+                W_fc1 = self.weight_variable([fc_size, self.fc_layer], name='fc_weight')
+                b_fc1 = self.bias_variable([self.fc_layer], name='fc_bias')
 
                 h_pool_flat = tf.reshape(h_pool, [-1, fc_size])
                 h_fc1 = tf.nn.relu(tf.matmul(h_pool_flat, W_fc1) + b_fc1)
 
-            with tf.name_scope('dropout'):
-                # Dropout layer => [batch_size x 1024]
-                keep_prob = tf.placeholder(tf.float32)
-                h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
+            with tf.name_scope('fc2'):
+                # Readout layer
+                W_fc2 = self.weight_variable([self.fc_layer, self.classes], name='fc_readout')
+                b_fc2 = self.bias_variable([self.classes], name='bias_readout')
 
-        with tf.name_scope('fc2'):
-            # Readout layer
-            W_fc2 = self.weight_variable([fc_layer, self.classes], name='fc_readout')
-            b_fc2 = self.bias_variable([self.classes], name='bias_readout')
+                probs = tf.matmul(h_fc1, W_fc2) + b_fc2
 
-            y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+        self.create_global_step()
 
-        # Label
-        y_ = tf.placeholder(tf.float32, shape=[None, self.classes], name="labels")
+        return probs
 
-        with tf.name_scope('loss'):
-            # Loss function
-            cross_entrophy = tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv)
-            )
-            tf.summary.scalar('cross_entrophy_mean', cross_entrophy)
+    def fprop(self, x):
+        probs = self.make_model(x)
+        return {
+            'probs': probs,
+            'logits': probs,
+        }
+    
+    def start_session(self):
+        """Start a session that will be used for training."""
+        self.sess = tf.Session()
 
-        with tf.name_scope('accuracy'):
-            correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
-            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            tf.summary.scalar('accuracy', accuracy)
+        # Summary writers
+        train_summary_dir = os.path.join(self.model_dir, 'training')
+        test_summary_dir = os.path.join(self.model_dir, 'test')
+        self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, self.sess.graph)
+        self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, self.sess.graph)
 
-        self.x = x
-        self.y_ = y_
-        self.keep_prob = keep_prob
-        self.y_conv = y_conv
-        self.cross_entrophy = cross_entrophy
-        self.accuracy = accuracy
+        return self.sess
 
-        self.merged = tf.summary.merge_all()
+    def end_session(self):
+        self.sess.close()
 
-        tf.train.create_global_step()
-
-
-    def train(self, epoch, data_provider):
+    def train(self, probs, x, y, epoch, data_provider):
         """Train the model with given data.
         data_provider must be a subclass of DatasetProvider which provides a `next_batch` function
         that will return a tuple of (data, label).
@@ -121,86 +119,95 @@ class CNNModel():
         if not issubclass(data_provider.__class__, DatasetProvider):
             raise TypeError('data_provider must be a subclass of DatasetProvider')
 
-        global_step = tf.train.get_global_step()
+        with self.sess.as_default():
 
-        with tf.name_scope('train'):
-            train_step = tf.train.AdamOptimizer(1e-4).minimize(self.cross_entrophy, global_step=global_step)
+            global_step = self.create_global_step()
 
-        with tf.Session() as sess:
-            # Summary writers
-            train_summary_dir = os.path.join(self.model_dir, 'training')
-            test_summary_dir = os.path.join(self.model_dir, 'test')
-            if not os.path.isdir(train_summary_dir):
-                os.makedirs(train_summary_dir)
-            self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
-            self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, sess.graph)
+            # Loss function
+            loss = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=probs)
+            )
 
-            sess.run(tf.global_variables_initializer())
+            # Train step
+            train_step = tf.train.AdamOptimizer(1e-4).minimize(loss, global_step=global_step)
+
+            # Accuracy
+            accuracy = tf.reduce_mean(
+                tf.cast(tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1)), tf.float32)
+            )
+
+            summary = tf.summary.merge([
+                tf.summary.scalar('loss', loss),
+                tf.summary.scalar('accuracy', accuracy),
+                tf.summary.image('input', x),
+            ])
+
+            self.sess.run(tf.global_variables_initializer())
 
             # Restore the model
-            self.restore_model(sess)
+            self.restore_model()
 
             for i in range(epoch):
                 batch = data_provider.next_batch()
 
                 train_step.run(
-                    feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 0.5})
+                    feed_dict={x: batch[0], y: batch[1]},
+                    session=self.sess
+                )
 
                 if i % 100 == 0:
-                    self.save_train_summary(sess, batch)
+                    self.calculate_train_accuracy(accuracy, x, y, batch, summary=summary)
 
                 if i % 1000 == 0:
-                    test_batch = data_provider.test_data()
-                    self.save_test_summary(sess, test_batch)
-
+                    self.calculate_test_accuracy(accuracy, x, y, data_provider.test_data(), summary=summary)
 
             # Save the model
-            self.save_model(sess)
+            self.save_model()
 
 
-    def test(self, batch_size, data_provider):
-        if not issubclass(data_provider.__class__, DatasetProvider):
-            raise TypeError('data_provider must be a subclass of DatasetProvider')
+    def calculate_train_accuracy(self, accuracy, x, y, batch, summary):
+        accuracy_value, summary_value, step = self.sess.run(
+            [accuracy, summary, self.create_global_step()],
+            {x: batch[0], y: batch[1]}
+        )
+        print('Step {}, train accuracy = {}'.format(step, accuracy_value))
+        self.train_summary_writer.add_summary(summary_value, step)
 
-        logger.info('Testing model with {} data...'.format(batch_size))
-
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-
-            # Restore the model
-            self.restore_model(sess)
-
-            # Evaluate the trainned model
-            test_batch = data_provider.test_data()
-            test_accuracy = self.accuracy.eval(
-                feed_dict={self.x: test_batch[0], self.y_: test_batch[1], self.keep_prob: 1.0})
-            print('test accuracy: {}'.format(test_accuracy))
+    def calculate_test_accuracy(self, accuracy, x, y, batch, summary):
+        accuracy_value, summary_value, step = self.sess.run(
+            [accuracy, summary, self.create_global_step()],
+            {x: batch[0], y: batch[1]}
+        )
+        print('Step {}, test accuracy = {}'.format(step, accuracy_value))
+        self.test_summary_writer.add_summary(summary_value, step)
 
 
-    def save_train_summary(self, sess, batch):
-        """Save traning summary data (accuracy, cross_entrophy) to model dir."""
-        global_step = tf.train.get_global_step()
-        step = global_step.eval(sess)
+    def adv_test(self, probs, x, y, adv_x, data_provider):
+        with self.sess.as_default():
 
-        summary, train_accuracy = sess.run([self.merged, self.accuracy],
-            feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
-        self.train_summary_writer.add_summary(summary, step)
-        print('Step {}, training accuracy={}'.format(step, train_accuracy))
+            batch = data_provider.test_data()
 
-    def save_test_summary(self, sess, batch):
-        """Save test summary data (accuracy, cross_entrophy) to model dir."""
-        global_step = tf.train.get_global_step()
-        step = global_step.eval(sess)
+            # Accuracy
+            accuracy = tf.reduce_mean(
+                tf.cast(tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1)), tf.float32)
+            )
 
-        summary, test_accuracy = sess.run([self.merged, self.accuracy],
-                                           feed_dict={self.x: batch[0], self.y_: batch[1], self.keep_prob: 1.0})
-        self.test_summary_writer.add_summary(summary, step)
-        print('Step {}, test accuracy={}'.format(step, test_accuracy))
+            perturbation = adv_x - x
+
+            summary = tf.summary.merge([
+                tf.summary.scalar('adv_accuracy', accuracy),
+                tf.summary.image('adv_input', adv_x),
+                tf.summary.image('adv_perturbation', perturbation),
+            ])
+
+            self.sess.run(tf.global_variables_initializer())
+            self.restore_model()
+
+            self.calculate_test_accuracy(accuracy, x, y, batch, summary=summary)
 
 
-
-    def save_model(self, sess):
-        saver = tf.train.Saver()
+    def save_model(self):
+        saver = tf.train.Saver(self.params)
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
 
@@ -209,28 +216,34 @@ class CNNModel():
 
         global_step = tf.train.get_global_step()
 
-        save_path = saver.save(sess, ckpt_path, global_step=global_step)
+        save_path = saver.save(self.sess, ckpt_path, global_step=global_step)
         logger.info('Model saved as {}.'.format(save_path))
 
-    def restore_model(self, sess):
-        saver = tf.train.Saver()
+    def restore_model(self):
+        saver = tf.train.Saver(self.params)
 
         save_path = tf.train.latest_checkpoint(self.model_dir)
         if save_path:
-            saver.restore(sess, save_path)
+            saver.restore(self.sess, save_path)
 
             global_step = tf.train.get_global_step()
 
-            logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(sess)))
+            logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(self.sess)))
 
 
     def weight_variable(self, shape, name):
-        initial = tf.truncated_normal(shape, stddev=0.1)
-        return tf.Variable(initial, name=name)
+        if name not in self.params:
+            initial = tf.truncated_normal(shape, stddev=0.1)
+            self.params[name] = tf.Variable(initial, name=name)
+
+        return self.params[name]
 
     def bias_variable(self, shape, name):
-        initial = tf.constant(0.1, shape=shape)
-        return tf.Variable(initial, name=name)
+        if name not in self.params:
+            initial = tf.constant(0.1, shape=shape)
+            self.params[name] = tf.Variable(initial, name=name)
+
+        return self.params[name]
 
     def conv2d(self, x, W):
         return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
@@ -239,4 +252,7 @@ class CNNModel():
         return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                               strides=[1, 2, 2, 1], padding='SAME')
 
-
+    def create_global_step(self):
+        if 'global_step' not in self.params:
+            self.params['global_step'] = tf.train.create_global_step()
+        return self.params['global_step']

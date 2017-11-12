@@ -142,9 +142,3 @@ class GtsrbProvider(DatasetProvider):
 
         all = np.concatenate(all_dataset, axis=0)
         all.dump(os.path.join(self.data_dir, '{}.npy'.format(prefix)))
-
-    def test_data(self):
-        """Limit test data set size to avoid out of memory."""
-        images, labels = super().test_data()
-        return images[:5000], labels[:5000]
-

@@ -9,6 +9,9 @@ from PIL import Image, ImageDraw
 
 class DatasetProvider():
 
+    IMAGE_SIZE = 28
+    CLASSES = 10
+
     def __init__(self, batch_size=100):
         self.batch_size = batch_size
         self.init()
@@ -122,16 +125,21 @@ class DatasetProvider():
         data = np.load(os.path.join(self.data_dir, 'test.npy'))
         np.random.shuffle(data)
 
-        return self.split_images_and_labels(data)
+        return self.split_images_and_labels(data[:5000])
 
     def split_images_and_labels(self, data):
         # Cut data to image data and label data
         images = data[:, :-1]
         labels = data[:, -1:]
 
+        # Normalize image data to [0.0, 1.0] and reshape to [batch, w, h, channels]
+        images = np.reshape(images * (1. / 255), [-1, self.IMAGE_SIZE, self.IMAGE_SIZE, 1])
+
+        # Generate one hot vector for labels
         one_hot = np.zeros(shape=[labels.shape[0], self.CLASSES], dtype=np.float32)
         for i in range(labels.shape[0]):
             class_id = labels[i][0]
             one_hot[i, class_id] = 1
+
         return (images, one_hot)
 
