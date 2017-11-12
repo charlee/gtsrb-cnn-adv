@@ -41,11 +41,12 @@ cnn.start_session()
 cnn.init_session_and_restore()
 
 BATCH_SIZE=100
-for theta in np.arange(0.2, 0.7, 0.2):
+for theta in np.arange(0.8, 1.1, 0.2):
     jsma_crafting.update_params({'theta': theta})
 
     for batch_pos in range(0, test_data.shape[0], BATCH_SIZE):
 
+        print("================ theta = {}, batch = {} =============".format(theta, batch_pos))
         batch = test_data[batch_pos:batch_pos+BATCH_SIZE]
         result = jsma_crafting.craft_examples(batch)
         result = jsma_crafting.summarize(batch, *result)

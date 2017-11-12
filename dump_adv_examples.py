@@ -10,4 +10,4 @@ if len(sys.argv) <= 1:
     exit(1)
 
 filename = sys.argv[1]
-ir.dump_adv(filename)
+ir.dump_adv(filename, 100)

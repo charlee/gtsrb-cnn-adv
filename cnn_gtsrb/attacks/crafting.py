@@ -201,23 +201,23 @@ class BatchJSMACrafting(BatchCrafting):
 
         batch_size = batch.shape[0]
 
-        # 1st column: image size    
+        # #0: image size    
         result.append(np.full([batch_size, 1], self.image_size))
-        # 2nd column: num of classes
+        # #1: num of classes
         result.append(np.full([batch_size, 1], self.num_classes))
-        # 3rd column: gamma
+        # #2: gamma
         result.append(np.full([batch_size, 1], self.attack_params['gamma']))
-        # 4rd column: gamma
+        # #3: gamma
         result.append(np.full([batch_size, 1], self.attack_params['theta']))
-        # 5-6th column: reserved
+        # #4-#5: reserved
         result.append(np.zeros([batch_size, 2]))
-        # 5th column: labels (correct classes)
+        # #6: labels (correct classes)
         result.append(batch[:,-1:])
-        # 6th column: legit predicts
+        # #7: legit predicts
         result.append(np.expand_dims(legit_predicts, 1))
-        # 7th column: adversarial targets
+        # #8: adversarial targets
         result.append(np.expand_dims(targets, 1))
-        # 8th column: adversarial predicts
+        # #9: adversarial predicts
         result.append(np.expand_dims(adv_predicts, 1))
         # original images
         result.append(batch[:,:-1])
