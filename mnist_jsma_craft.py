@@ -6,11 +6,11 @@ from cnn_gtsrb.cnn.model import CNNModel
 from cnn_gtsrb.dataset.canvas import Canvas
 
 import tensorflow as tf
-from cleverhans.attacks import FastGradientMethod
+from cleverhans.attacks import SaliencyMapMethod
 from cnn_gtsrb.attacks.crafting import generate_adv_examples
 
 
-SAVE_DIR = os.path.join('tmp', 'mnist_adv_fgsm')
+SAVE_DIR = os.path.join('tmp', 'mnist_adv_jsma')
 if not os.path.isdir(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
@@ -22,7 +22,7 @@ mnist = MnistProvider()
 data = mnist.raw_train_data()
 
 grouped_data = []
-for i in range(mnist.CLASSES):
+for i in range(0, mnist.CLASSES):
     grouped_data.append(data[(data[:,-1] == i), :])
 
 images = np.concatenate(
@@ -46,27 +46,20 @@ probs = cnn.make_model(x)
 cnn.start_session()
 cnn.init_session_and_restore()
 
-fgsm = FastGradientMethod(cnn, sess=cnn.sess)
+jsma = SaliencyMapMethod(cnn, sess=cnn.sess)
+jsma_params = {'theta': 1., 'gamma': 0.1, 'clip_min': 0., 'clip_max': 1., 'y_target': None}
 
-success_matrix = []
 
-for eps in np.concatenate((np.arange(0.02, 0.1, 0.02), np.arange(0.1, 1, 0.1))):
-    m = generate_adv_examples(
-        attack=fgsm, 
-        attack_params={'eps': eps, 'clip_min': 0., 'clip_max': 1.},
-        cnn=cnn,
-        probs=probs,
-        x=x,
-        images=images,
-        num_classes=mnist.CLASSES,
-        output_file=os.path.join(SAVE_DIR, 'adv_examples-{:02d}.png'.format(int(eps * 100)))
-    )
-
-    success_matrix.append(eps * m + 1 * ~m)
-
-success_matrix = np.minimum.reduce(np.array(success_matrix))
-success_matrix.dump(os.path.join(SAVE_DIR, 'success_rate.npy'))
-print(success_matrix)
+generate_adv_examples(
+    attack=jsma, 
+    attack_params=jsma_params,
+    cnn=cnn,
+    probs=probs,
+    x=x,
+    images=images,
+    num_classes=mnist.CLASSES,
+    output_file=os.path.join(SAVE_DIR, 'adv_examples.png')
+)
 
 
 # cnn.test(mnist)

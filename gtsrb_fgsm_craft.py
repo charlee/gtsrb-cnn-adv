@@ -28,7 +28,7 @@ np.random.shuffle(data)
 
 grouped_data = []
 for i in range(0, gtsrb.CLASSES, 2):
-    grouped_data.append(data[(data[:,-1] == i), :-1])
+    grouped_data.append(data[(data[:,-1] == i), :])
 
 images = np.concatenate(
     [np.expand_dims(group[0], 0) for group in grouped_data], axis=0
@@ -63,7 +63,7 @@ for eps in np.concatenate((np.arange(0.02, 0.1, 0.02), np.arange(0.1, 1, 0.1))):
         probs=probs,
         x=x,
         images=images,
-        actual_classes=gtsrb.CLASSES,
+        num_classes=gtsrb.CLASSES,
         output_file=os.path.join(SAVE_DIR, 'adv_examples-{:02d}.png'.format(int(eps * 100)))
     )
 
