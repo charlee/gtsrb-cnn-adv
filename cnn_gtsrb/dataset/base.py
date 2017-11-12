@@ -12,9 +12,9 @@ class DatasetProvider():
     IMAGE_SIZE = 28
     CLASSES = 10
 
-    def __init__(self, batch_size=100):
+    def __init__(self, batch_size=100, *args, **kwargs):
         self.batch_size = batch_size
-        self.init()
+        self.init(*args, **kwargs)
 
     def init(self):
         raise NotImplemented('Inherited class must implement `init`')

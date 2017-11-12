@@ -81,9 +81,16 @@ class GtsrbProvider(DatasetProvider):
     IMAGE_SIZE = 64
     CLASSES = 43
 
-    def init(self):
+    def init(self, ignore_small=False):
 
-        self.data_dir = os.path.join(self.DATA_DIR, 'gtsrb_data')
+        if ignore_small:
+            dirname = 'gtsrb_data.nosmall'
+        else:
+            dirname = 'gtsrb_data'
+
+        self.ignore_small = ignore_small
+
+        self.data_dir = os.path.join(self.DATA_DIR, dirname)
         if not os.path.isdir(self.data_dir):
             os.makedirs(self.data_dir)
 
