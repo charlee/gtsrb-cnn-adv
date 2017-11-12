@@ -101,6 +101,19 @@ class DatasetProvider():
                 im.save(os.path.join(self.data_dir, filename))
                 im.close()
 
+    def raw_train_data(self):
+        """Return unprocessed data."""
+        return np.load(os.path.join(self.data_dir, 'training.npy'))
+
+    def raw_test_data(self):
+        return np.load(os.path.join(self.data_dir, 'test.npy'))
+
+    def train_data(self):
+        """Return all train images and labels."""
+        data = np.load(os.path.join(self.data_dir, 'training.npy'))
+        np.random.shuffle(data)
+        return self.split_images_and_labels(size and data[:size] or data)
+
     def next_batch(self, batch_size=None):
 
         if not batch_size:
@@ -121,12 +134,15 @@ class DatasetProvider():
 
         return self.split_images_and_labels(batch)
 
-    def test_data(self, size=5000):
+    def test_data(self, size=None):
         """Pick `size` test data randomly."""
         data = np.load(os.path.join(self.data_dir, 'test.npy'))
         np.random.shuffle(data)
 
-        return self.split_images_and_labels(data[:size])
+        if size is not None:
+            data = data[:size]
+
+        return self.split_images_and_labels(data)
 
     def split_images_and_labels(self, data):
         # Cut data to image data and label data
