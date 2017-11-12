@@ -38,6 +38,48 @@ Its an `ndarray` dump and can be loaded with `np.load('success_rate.npy')`.
 
 For GTSRB dataset, only one set of parameters `theta=1, gamma=0.1` is used due to limited time.
 
+
+## CNN Model
+
+The CNN models used are:
+
+- GTSRB
+  - Image size: 32x32
+  - Network architecture:
+      ```
+      layer  | parameters      | output size
+      -------+-----------------+---------
+      input  | [?, 32, 32, 1]  |
+      conv_1 | [5, 5, 1, 32]   |
+      pool_1 | [2, 2]          | [?, 32, 32, 32]
+      conv_2 | [5, 5, 32, 64]  |
+      pool_2 | [2, 2]          | [?, 16, 16, 64]
+      conv_3 | [5, 5, 64, 128] |
+      pool_3 | [2, 2]          | [?, 8, 8, 128]
+      fc     | [8192, 512]     | 
+      dropout| 0.5             |
+      output | [512, 43]       | [43]
+      ```
+  - epoches: 20000
+  - test accuracy: 93.04%
+- CNN on GTSRB 32x32
+  - Image size: 32x32
+  - Network architecture:
+      ```
+      layer  | parameters      | output size
+      -------+-----------------+---------
+      input  | [?, 32, 32, 1]  |
+      conv_1 | [5, 5, 1, 32]   |
+      pool_1 | [2, 2]          | [?, 16, 16, 32]
+      conv_2 | [5, 5, 32, 64]  |
+      pool_2 | [2, 2]          | [?, 8, 8, 64]
+      fc     | [4096, 1024]    | 
+      dropout| 0.5             |
+      output | [1024, 43]      | [43]
+      ```
+  - epoches: 20000
+  - test accuracy: 99.05%
+
 ## Observation
 
 [TODO: need data of eps -> successful rate]
