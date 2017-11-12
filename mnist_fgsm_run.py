@@ -7,7 +7,7 @@ from cnn_gtsrb.cnn.model import CNNModel
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-fgsm_params = {'eps': 0.3, 'clip_min': 0., 'clip_max': 1.}
+fgsm_params = {'eps': 0.5, 'clip_min': 0., 'clip_max': 1.}
 
 mnist = MnistProvider()
 # mnist.dump_images()

@@ -208,6 +208,11 @@ class CNNModel(Model):
 
             self.calculate_test_accuracy(accuracy, x, y, batch, summary=summary)
 
+    def init_session_and_restore(self):
+        with self.sess.as_default():
+            self.sess.run(tf.global_variables_initializer())
+            self.restore_model()
+
 
     def save_model(self):
         saver = tf.train.Saver(self.params)
@@ -220,7 +225,7 @@ class CNNModel(Model):
         global_step = tf.train.get_global_step()
 
         save_path = saver.save(self.sess, ckpt_path, global_step=global_step)
-        logger.info('Model saved as {}.'.format(save_path))
+        print('Model saved as {}.'.format(save_path))
 
     def restore_model(self):
         saver = tf.train.Saver(self.params)
@@ -231,7 +236,7 @@ class CNNModel(Model):
 
             global_step = tf.train.get_global_step()
 
-            logger.info('Model restored from {}, global_step={}'.format(save_path, global_step.eval(self.sess)))
+            print('Model restored from {}, global_step={}'.format(save_path, global_step.eval(self.sess)))
 
 
     def weight_variable(self, shape, name):

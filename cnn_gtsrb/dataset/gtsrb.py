@@ -14,14 +14,12 @@ logger = logging.getLogger('gtsrb')
 class GtsrbClass:
     """A GTSRB class folder with images of the same class."""
 
-    IMAGE_SIZE = 64
+    IMAGE_SIZE = 32
 
-    def __init__(self, index_file, train_ratio=80):
-        self.train_ratio = train_ratio
+    def __init__(self, index_file, ignore_small=False):
 
         self.image_list = []
-        self.training_set = []
-        self.test_set = []
+        self.ignore_small = ignore_small
 
         dir = os.path.dirname(index_file)
         basename = os.path.basename(index_file)
@@ -47,6 +45,10 @@ class GtsrbClass:
         in which the last element is the label."""
         im = Image.open(image_info['path'])
         im = im.crop(image_info['box'])
+
+        if self.ignore_small and (im.size[0] < self.IMAGE_SIZE or im.size[1] < self.IMAGE_SIZE):
+            return None
+
         im = im.convert('L')
         im = im.resize((self.IMAGE_SIZE, self.IMAGE_SIZE))
         im = ImageOps.equalize(im)
@@ -68,6 +70,7 @@ class GtsrbClass:
         we take 80% of total distinct traffic signs as traning set.
         """
         images = [self.read_image(im) for im in self.image_list]
+        images = [im for im in images if im is not None]
 
         return images
 
@@ -78,12 +81,19 @@ class GtsrbProvider(DatasetProvider):
     TEST_ANNOTATION_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Test_GT.zip'
     DATA_DIR = settings.DATA_TEMP_GTSRB
 
-    IMAGE_SIZE = 64
+    IMAGE_SIZE = 32
     CLASSES = 43
 
-    def init(self):
+    def init(self, ignore_small=False):
 
-        self.data_dir = os.path.join(self.DATA_DIR, 'gtsrb_data')
+        if ignore_small:
+            dirname = 'gtsrb_data.nosmall'
+        else:
+            dirname = 'gtsrb_data'
+
+        self.ignore_small = ignore_small
+
+        self.data_dir = os.path.join(self.DATA_DIR, dirname)
         if not os.path.isdir(self.data_dir):
             os.makedirs(self.data_dir)
 
@@ -135,7 +145,7 @@ class GtsrbProvider(DatasetProvider):
                 if f.endswith('.csv'):
                     print('Generating dataset for {}'.format(f))
                     filepath = os.path.join(root, f)
-                    gtsrb_class = GtsrbClass(filepath)
+                    gtsrb_class = GtsrbClass(filepath, ignore_small=self.ignore_small)
                     dataset = gtsrb_class.get_dataset()
 
                     all_dataset += dataset
