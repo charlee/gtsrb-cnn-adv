@@ -41,7 +41,7 @@ cnn.start_session()
 cnn.init_session_and_restore()
 
 BATCH_SIZE=100
-for i, theta in enumerate(np.arange(0.2, 1.1, 0.2)):
+for theta in np.arange(0.2, 0.7, 0.2):
     jsma_crafting.update_params({'theta': theta})
 
     for batch_pos in range(0, test_data.shape[0], BATCH_SIZE):
@@ -50,6 +50,6 @@ for i, theta in enumerate(np.arange(0.2, 1.1, 0.2)):
         result = jsma_crafting.craft_examples(batch)
         result = jsma_crafting.summarize(batch, *result)
 
-        result.dump(os.path.join(DIR_NAME, 'jsma_gtsrb-{}-{}.npy'.format(i, batch_pos)))
+        result.dump(os.path.join(DIR_NAME, 'jsma_gtsrb-{:0.1f}-{}.npy'.format(theta, batch_pos)))
 
 cnn.end_session()

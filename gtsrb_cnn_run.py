@@ -22,7 +22,7 @@ x, y = cnn.make_inputs()
 probs = cnn.make_model(x)
 
 cnn.start_session()
-cnn.train(probs, x, y, 10000, gtsrb)
+cnn.train(probs, x, y, 20000, gtsrb)
 # cnn.test(gtsrb)
 cnn.end_session()
 
