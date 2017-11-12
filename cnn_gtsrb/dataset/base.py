@@ -121,11 +121,12 @@ class DatasetProvider():
 
         return self.split_images_and_labels(batch)
 
-    def test_data(self):
+    def test_data(self, size=5000):
+        """Pick `size` test data randomly."""
         data = np.load(os.path.join(self.data_dir, 'test.npy'))
         np.random.shuffle(data)
 
-        return self.split_images_and_labels(data[:5000])
+        return self.split_images_and_labels(data[:size])
 
     def split_images_and_labels(self, data):
         # Cut data to image data and label data

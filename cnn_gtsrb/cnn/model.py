@@ -34,6 +34,9 @@ class CNNModel(Model):
         self.model_name = model_name
         self.model_dir = model_dir
 
+        if not os.path.isdir(self.model_dir):
+            os.makedirs(self.model_dir)
+
         self.params = {}
 
     def make_inputs(self):
@@ -77,13 +80,15 @@ class CNNModel(Model):
                 h_pool_flat = tf.reshape(h_pool, [-1, fc_size])
                 h_fc1 = tf.nn.relu(tf.matmul(h_pool_flat, W_fc1) + b_fc1)
 
+            with tf.name_scope('dropout'):
+                h_fc1_dropout = tf.nn.dropout(h_fc1, keep_prob=0.5)
 
             with tf.name_scope('fc2'):
                 # Readout layer
                 W_fc2 = self.weight_variable([self.fc_layer, self.classes], name='fc_readout')
                 b_fc2 = self.bias_variable([self.classes], name='bias_readout')
 
-                probs = tf.matmul(h_fc1, W_fc2) + b_fc2
+                probs = tf.matmul(h_fc1_dropout, W_fc2) + b_fc2
 
         self.create_global_step()
 
@@ -182,17 +187,15 @@ class CNNModel(Model):
         self.test_summary_writer.add_summary(summary_value, step)
 
 
-    def adv_test(self, probs, x, y, adv_x, data_provider):
+    def adv_test(self, probs, x, y, adv_x, batch):
         with self.sess.as_default():
-
-            batch = data_provider.test_data()
 
             # Accuracy
             accuracy = tf.reduce_mean(
                 tf.cast(tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1)), tf.float32)
             )
 
-            perturbation = adv_x - x
+            perturbation = tf.cast(((adv_x - x) + 1.) * (255 / 2), tf.uint8)
 
             summary = tf.summary.merge([
                 tf.summary.scalar('adv_accuracy', accuracy),

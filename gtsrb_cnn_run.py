@@ -12,17 +12,17 @@ gtsrb = GtsrbProvider()
 cnn = CNNModel(
     image_size=gtsrb.IMAGE_SIZE,
     classes=gtsrb.CLASSES,
-    model_name='gtsrb-32x32.1',
-    model_dir='tmp/gtsrb_model-32x32.1',
-    conv_layers=[32, 64],
-    fc_layer=1024,
+    model_name='gtsrb-64x64',
+    model_dir='tmp/gtsrb_model-64x64',
+    conv_layers=[32, 64, 128],
+    fc_layer=512,
 )
 
 x, y = cnn.make_inputs()
 probs = cnn.make_model(x)
 
 cnn.start_session()
-cnn.train(probs, x, y, 400, gtsrb)
+cnn.train(probs, x, y, 10000, gtsrb)
 # cnn.test(gtsrb)
 cnn.end_session()
 

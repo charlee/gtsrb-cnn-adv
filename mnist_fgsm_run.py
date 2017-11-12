@@ -30,7 +30,7 @@ fgsm = FastGradientMethod(cnn, sess=cnn.sess)
 adv_x = fgsm.generate(x, **fgsm_params)
 probs = cnn.make_model(adv_x)
 
-cnn.adv_test(probs, x, y, adv_x, mnist)
+cnn.adv_test(probs, x, y, adv_x, mnist.test_data(size=5000))
 # cnn.test(mnist)
 cnn.end_session()
 
