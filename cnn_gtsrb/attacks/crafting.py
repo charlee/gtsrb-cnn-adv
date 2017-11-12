@@ -1,8 +1,11 @@
 import logging
+import copy
 import numpy as np
 import math
 import tensorflow as tf
 from cnn_gtsrb.dataset.canvas import Canvas
+
+from cleverhans.attacks import SaliencyMapMethod, FastGradientMethod
 
 logger = logging.getLogger(__file__)
 logging.basicConfig(level=logging.DEBUG)
@@ -66,3 +69,159 @@ def generate_adv_examples(
     canvas.save(output_file)
 
     return success_matrix
+
+
+class BatchCrafting():
+
+    attack_class = SaliencyMapMethod
+
+    def __init__(self, cnn_model, attack_params, image_size, num_classes):
+        """
+        :param x: original input tensor.
+        :param cnn_model: cnn model class.
+        """
+        self.cnn_model = cnn_model
+        self.attack_params = attack_params
+        self.num_classes = num_classes
+        self.image_size = image_size
+
+        # Input and Labels
+        # x = [batch, size, size, 1], y = [batch, classes]
+        self.x, self.y = self.cnn_model.make_inputs()
+
+        # Predict output (one-hot)
+        # probs = [batch, classes]
+        self.probs = self.cnn_model.make_model(self.x)
+
+        # Attach algorithm
+        self.attack = self.attack_class(self.cnn_model)
+
+    def update_params(self, params):
+        """Update part of the attack params. (i.e. the variable parts)"""
+        self.attack_params.update(params)
+
+    def craft_examples(self, batch):
+        """Create adversarial examples for the batch.
+        Batch should be [None, size*size+1], in which [:,0..-1] are the images
+        and [:-1] are the labels.
+
+        Return: a tuple of (legit_predicts ,adv_examples, targeted_classes, adv_predicts)
+        """
+        sess = self.cnn_model.sess
+        self.attack.sess = sess
+
+        # Make random targets
+        y = np.random.randint(self.num_classes, size=batch.shape[0])
+        y_one_hot = np.zeros([batch.shape[0], self.num_classes])
+        for idx, label in enumerate(y):
+            y_one_hot[idx, label] = 1
+
+        # Adversarial input
+        # adv_x = [batch, size, size, 1]
+        params = copy.copy(self.attack_params)
+        params.update({'y_target': y_one_hot})
+        # adv_x = self.attack.generate(self.x, **params)
+
+        # Craft adversarial examples
+
+        data = np.reshape(batch[:,:-1], [-1, self.image_size, self.image_size, 1])
+        data = data * (1./255)
+
+        legit_predicts = sess.run(
+            tf.argmax(self.probs, axis=1), 
+            feed_dict={self.x: data},
+        )
+
+        
+        # adv_examples = sess.run(adv_x, feed_dict={self.x: data})
+        adv_examples = self.attack.generate_np(data, **params)
+
+        # Adversarial predict output    
+        adv_predicts = sess.run(
+            tf.argmax(self.probs, axis=1),
+            feed_dict={self.x: adv_examples},
+        )
+
+        return (
+            legit_predicts,
+            np.reshape(adv_examples * 255, [-1, self.image_size * self.image_size]),
+            y,
+            adv_predicts
+        )
+
+    def summarize(self, batch, legit_predicts, adv_examples, targets, adv_predicts):
+        raise NotImplemented()
+
+class BatchFGSMCrafting(BatchCrafting):
+    attack_class = FastGradientMethod
+
+    def __init__(self, cnn_model, attack_params, *args, **kwargs):
+        assert 'eps' in attack_params, 'attack_params MUST contain `eps`'
+        super().__init__(cnn_model, attack_params, *args, **kwargs)
+
+    def summarize(self, batch, legit_predicts, adv_examples, targets, adv_predicts):
+        result = []
+
+        batch_size = batch.shape[0]
+
+        # 1st column: image size    
+        result.append(np.full([batch_size, 1], self.image_size))
+        # 2nd column: num of classes
+        result.append(np.full([batch_size, 1], self.num_classes))
+        # 3rd column: epsillon
+        result.append(np.full([batch_size, 1], self.attack_params['eps']))
+        # 4-6th column: reserved
+        result.append(np.zeros([batch_size, 3]))
+        # 7th column: labels (correct classes)
+        result.append(batch[:,-1:])
+        # 8th column: legit predicts
+        result.append(np.expand_dims(legit_predicts, 1))
+        # 9th column: adversarial targets
+        result.append(np.expand_dims(targets, 1))
+        # 10th column: adversarial predicts
+        result.append(np.expand_dims(adv_predicts, 1))
+        # original images
+        result.append(batch[:,:-1])
+        # adversarial examples
+        result.append(adv_examples)
+
+        return np.concatenate(result, axis=1)
+
+
+class BatchJSMACrafting(BatchCrafting):
+    attack_class = SaliencyMapMethod
+
+    def __init__(self, cnn_model, attack_params, *args, **kwargs):
+        assert 'gamma' in attack_params, 'attack_params MUST contain `gamma`'
+        assert 'theta' in attack_params, 'attack_params MUST contain `theta`'
+        super().__init__(cnn_model, attack_params, *args, **kwargs)
+
+    def summarize(self, batch, legit_predicts, adv_examples, targets, adv_predicts):
+        result = []
+
+        batch_size = batch.shape[0]
+
+        # 1st column: image size    
+        result.append(np.full([batch_size, 1], self.image_size))
+        # 2nd column: num of classes
+        result.append(np.full([batch_size, 1], self.num_classes))
+        # 3rd column: gamma
+        result.append(np.full([batch_size, 1], self.attack_params['gamma']))
+        # 4rd column: gamma
+        result.append(np.full([batch_size, 1], self.attack_params['theta']))
+        # 5-6th column: reserved
+        result.append(np.zeros([batch_size, 2]))
+        # 5th column: labels (correct classes)
+        result.append(batch[:,-1:])
+        # 6th column: legit predicts
+        result.append(np.expand_dims(legit_predicts, 1))
+        # 7th column: adversarial targets
+        result.append(np.expand_dims(targets, 1))
+        # 8th column: adversarial predicts
+        result.append(np.expand_dims(adv_predicts, 1))
+        # original images
+        result.append(batch[:,:-1])
+        # adversarial examples
+        result.append(adv_examples)
+
+        return np.concatenate(result, axis=1)
