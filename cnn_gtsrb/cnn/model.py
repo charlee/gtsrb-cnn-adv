@@ -85,6 +85,8 @@ class CNNModel(Model):
 
                 probs = tf.matmul(h_fc1, W_fc2) + b_fc2
 
+        self.create_global_step()
+
         return probs
 
     def fprop(self, x):
@@ -101,8 +103,6 @@ class CNNModel(Model):
         # Summary writers
         train_summary_dir = os.path.join(self.model_dir, 'training')
         test_summary_dir = os.path.join(self.model_dir, 'test')
-        if not os.path.isdir(train_summary_dir):
-            os.makedirs(train_summary_dir)
         self.train_summary_writer = tf.summary.FileWriter(train_summary_dir, self.sess.graph)
         self.test_summary_writer = tf.summary.FileWriter(test_summary_dir, self.sess.graph)
 
@@ -136,8 +136,11 @@ class CNNModel(Model):
                 tf.cast(tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1)), tf.float32)
             )
 
-            tf.summary.scalar('cross_entrophy_mean', loss)
-            tf.summary.scalar('accuracy', accuracy)
+            summary = tf.summary.merge([
+                tf.summary.scalar('loss', loss),
+                tf.summary.scalar('accuracy', accuracy),
+                tf.summary.image('input', x),
+            ])
 
             self.sess.run(tf.global_variables_initializer())
 
@@ -153,24 +156,35 @@ class CNNModel(Model):
                 )
 
                 if i % 100 == 0:
-                    self.calculate_accuracy(accuracy, x, y, batch, name='train_accuracy')
+                    self.calculate_train_accuracy(accuracy, x, y, batch, summary=summary)
 
                 if i % 1000 == 0:
-                    self.calculate_accuracy(accuracy, x, y, data_provider.test_data(), name='test_accuracy')
+                    self.calculate_test_accuracy(accuracy, x, y, data_provider.test_data(), summary=summary)
 
             # Save the model
             self.save_model()
 
 
-    def calculate_accuracy(self, accuracy, x, y, batch, name):
-        accuracy_value = self.sess.run(accuracy, {x: batch[0], y: batch[1]})
-        print('{} = {}'.format(name, accuracy_value))
+    def calculate_train_accuracy(self, accuracy, x, y, batch, summary):
+        accuracy_value, summary_value, step = self.sess.run(
+            [accuracy, summary, self.create_global_step()],
+            {x: batch[0], y: batch[1]}
+        )
+        print('Step {}, train accuracy = {}'.format(step, accuracy_value))
+        self.train_summary_writer.add_summary(summary_value, step)
+
+    def calculate_test_accuracy(self, accuracy, x, y, batch, summary):
+        accuracy_value, summary_value, step = self.sess.run(
+            [accuracy, summary, self.create_global_step()],
+            {x: batch[0], y: batch[1]}
+        )
+        print('Step {}, test accuracy = {}'.format(step, accuracy_value))
+        self.test_summary_writer.add_summary(summary_value, step)
 
 
-    def test(self, probs, x, y, data_provider):
+    def adv_test(self, probs, x, y, adv_x, data_provider):
         with self.sess.as_default():
 
-            global_step = self.create_global_step()
             batch = data_provider.test_data()
 
             # Accuracy
@@ -178,10 +192,18 @@ class CNNModel(Model):
                 tf.cast(tf.equal(tf.argmax(probs, 1), tf.argmax(y, 1)), tf.float32)
             )
 
+            perturbation = adv_x - x
+
+            summary = tf.summary.merge([
+                tf.summary.scalar('adv_accuracy', accuracy),
+                tf.summary.image('adv_input', adv_x),
+                tf.summary.image('adv_perturbation', perturbation),
+            ])
+
             self.sess.run(tf.global_variables_initializer())
             self.restore_model()
 
-            self.calculate_accuracy(accuracy, x, y, batch, name='test_accuracy')
+            self.calculate_test_accuracy(accuracy, x, y, batch, summary=summary)
 
 
     def save_model(self):
@@ -234,4 +256,3 @@ class CNNModel(Model):
         if 'global_step' not in self.params:
             self.params['global_step'] = tf.train.create_global_step()
         return self.params['global_step']
-

@@ -15,8 +15,8 @@ mnist = MnistProvider()
 cnn = CNNModel(
     image_size=mnist.IMAGE_SIZE,
     classes=mnist.CLASSES,
-    model_name='mnist-32x32.1',
-    model_dir='tmp/mnist_model-32x32.1',
+    model_name='mnist-28x28.1',
+    model_dir='tmp/mnist_model-28x28.1',
     conv_layers=[32, 64],
     fc_layer=1024,
 )
@@ -28,8 +28,9 @@ cnn.start_session()
 
 fgsm = FastGradientMethod(cnn, sess=cnn.sess)
 adv_x = fgsm.generate(x, **fgsm_params)
+probs = cnn.make_model(adv_x)
 
-cnn.test(probs, x, y, mnist)
+cnn.adv_test(probs, x, y, adv_x, mnist)
 # cnn.test(mnist)
 cnn.end_session()
 
