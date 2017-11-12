@@ -27,7 +27,7 @@ data = gtsrb.raw_train_data()
 np.random.shuffle(data)
 
 grouped_data = []
-for i in range(0, gtsrb.CLASSES, 10):
+for i in range(0, gtsrb.CLASSES, 2):
     grouped_data.append(data[(data[:,-1] == i), :-1])
 
 images = np.concatenate(
