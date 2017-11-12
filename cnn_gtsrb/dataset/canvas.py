@@ -80,3 +80,5 @@ class Canvas():
     def save(self, filename):
         self.canvas.save(filename)
 
+    def show(self):
+        self.canvas.show()

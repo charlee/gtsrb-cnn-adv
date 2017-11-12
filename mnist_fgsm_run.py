@@ -7,7 +7,7 @@ from cnn_gtsrb.cnn.model import CNNModel
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-fgsm_params = {'eps': 0.5, 'clip_min': 0., 'clip_max': 1.}
+fgsm_params = {'eps': 0.2, 'clip_min': 0., 'clip_max': 1.}
 
 mnist = MnistProvider()
 # mnist.dump_images()
@@ -25,12 +25,14 @@ x, y = cnn.make_inputs()
 
 probs = cnn.make_model(x)
 cnn.start_session()
+# Not necessary because adv_test will restore the model
+# cnn.init_session_and_restore()
 
 fgsm = FastGradientMethod(cnn, sess=cnn.sess)
 adv_x = fgsm.generate(x, **fgsm_params)
-probs = cnn.make_model(adv_x)
+adv_probs = cnn.make_model(adv_x)
 
-cnn.adv_test(probs, x, y, adv_x, mnist.test_data(size=5000))
+cnn.adv_test(adv_probs, x, y, adv_x, mnist.test_data(size=5000))
 # cnn.test(mnist)
 cnn.end_session()
 
