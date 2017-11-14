@@ -51,6 +51,6 @@ for eps in np.arange(0.1, 0.6, 0.1):
         result = fgsm_crafting.craft_examples(batch)
         result = fgsm_crafting.summarize(batch, *result)
 
-        result.dump(os.path.join(DIR_NAME, 'fgsm_gtsrb-{:0.1f}-{}.npy'.format(theta, batch_pos)))
+        result.dump(os.path.join(DIR_NAME, 'fgsm_gtsrb-{:0.2f}-{}.npy'.format(eps, batch_pos)))
 
 cnn.end_session()
