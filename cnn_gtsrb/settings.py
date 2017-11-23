@@ -12,4 +12,7 @@ CLASSES = 43
 
 # Data temporary directory
 DATA_TEMP_GTSRB = os.path.join(BASE_DIR, 'tmp', 'gtsrb_data')
+DATA_TEMP_COLOR_GTSRB = os.path.join(BASE_DIR, 'tmp', 'color_gtsrb_data')
+DATA_TEMP_COLOR_GTSRB_10 = os.path.join(BASE_DIR, 'tmp', 'color_gtsrb_10_data')
 DATA_TEMP_MNIST = os.path.join(BASE_DIR, 'tmp', 'mnist_data')
+DATA_TEMP_CIFAR10 = os.path.join(BASE_DIR, 'tmp', 'cifar10_data')

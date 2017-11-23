@@ -11,6 +11,7 @@ logger = logging.getLogger('cnn')
 class CNNModel(Model):
 
     def __init__(self, image_size, classes, model_name, model_dir,
+                 channels=1,
                  kernel_size=[5, 5],
                  conv_layers=[32, 64],
                  fc_layer=1024,
@@ -33,6 +34,7 @@ class CNNModel(Model):
         self.kernel_size = kernel_size
         self.model_name = model_name
         self.model_dir = model_dir
+        self.channels = channels
 
         if not os.path.isdir(self.model_dir):
             os.makedirs(self.model_dir)
@@ -40,7 +42,7 @@ class CNNModel(Model):
         self.params = {}
 
     def make_inputs(self):
-        x = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, 1], name='x')
+        x = tf.placeholder(tf.float32, shape=[None, self.image_size, self.image_size, self.channels], name='x')
         y = tf.placeholder(tf.float32, shape=[None, self.classes], name="y")
 
         return x, y
@@ -49,7 +51,7 @@ class CNNModel(Model):
 
         with tf.name_scope('cnn'):
             h_pool = x
-            prev_layer_features = 1
+            prev_layer_features = self.channels
             layer_size = self.image_size * self.image_size        # size of current layer
 
             for i, feature_count in enumerate(self.conv_layers):
