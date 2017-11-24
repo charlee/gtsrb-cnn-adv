@@ -1,11 +1,12 @@
 import sys
 import logging
-import tensorflow as tf
+# import tensorflow as tf
 from cnn_gtsrb.dataset.color_gtsrb_10 import ColorGtsrb10Provider
+from cnn_gtsrb.dataset.cifar10 import Cifar10Provider
 from cnn_gtsrb.cnn.model import CNNModel
 #logging.basicConfig(level=logging.INFO)
 
-tf.logging.set_verbosity(tf.logging.INFO)
+# tf.logging.set_verbosity(tf.logging.INFO)
 
 
 def train_cnn_cgtsrb10():
@@ -31,9 +32,16 @@ def train_cnn_cgtsrb10():
     cnn.end_session()
 
 
+def download_cifar10():
+    cifar10 = Cifar10Provider()
+    cifar10.dump_images()
 
 
 if __name__ == '__main__':
+    download_cifar10()
+    exit()
     cmd = sys.argv[1]
     if cmd == 'train_cnn_cgtsrb10':
         train_cnn_cgtsrb10()
+    elif cmd == 'download_cifar10':
+        download_cifar10()

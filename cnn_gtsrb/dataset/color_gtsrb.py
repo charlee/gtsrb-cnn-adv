@@ -21,7 +21,7 @@ class ColorGtsrbClass(GtsrbClass):
             return None
 
         im = im.resize((self.IMAGE_SIZE, self.IMAGE_SIZE))
-        im = ImageOps.equalize(im)
+        # im = ImageOps.equalize(im)
         data = im.tobytes()
         data = np.fromstring(data, dtype=np.uint8)
         data = np.append(data, [image_info['label']])
