@@ -5,6 +5,7 @@ from .base import DatasetProvider
 import cnn_gtsrb.settings as settings
 
 class MnistProvider(DatasetProvider):
+    name = 'mnist'
     IMAGE_SIZE = 28
     CLASSES = 10
 

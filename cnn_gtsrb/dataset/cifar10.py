@@ -7,6 +7,7 @@ import cnn_gtsrb.settings as settings
 
 
 class Cifar10Provider(DatasetProvider):
+    name = 'cifar10'
     IMAGE_SIZE = 32
     CLASSES = 10
     CHANNELS = 3

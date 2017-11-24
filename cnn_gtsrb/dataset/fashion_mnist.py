@@ -3,6 +3,7 @@ from .mnist import MnistProvider
 
 
 class FashionMnistProvider(MnistProvider):
+    name = 'fmnist'
     URL_BASE = 'http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/'
     TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
     TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'

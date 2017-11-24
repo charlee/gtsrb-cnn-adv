@@ -69,7 +69,7 @@ class Canvas():
             raise ValueError('Invalid mode.')
 
         arr = np.reshape(arr, shape)
-        im = Image.fromarray(arr)
+        im = Image.fromarray(arr, self.mode)
         im.convert('RGB')
         self.paste(im, xpos, ypos, **kwargs)
 

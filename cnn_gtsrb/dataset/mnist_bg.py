@@ -5,6 +5,7 @@ from cnn_gtsrb import settings
 from .mnist import MnistProvider
 
 class MnistBgProvider(MnistProvider):
+    name = 'mnist_bg'
     URL = 'http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_background_images.zip'
     IMAGE_SIZE = 28
     CLASSES = 10

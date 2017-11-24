@@ -1,3 +1,4 @@
+import os
 import sys
 import logging
 # import tensorflow as tf
@@ -8,108 +9,167 @@ from cnn_gtsrb.dataset.cifar10 import Cifar10Provider
 from cnn_gtsrb.cnn.model import CNNModel
 #logging.basicConfig(level=logging.INFO)
 
+from cnn_gtsrb.attacks.crafting import BatchFGSMCrafting, BatchJSMACrafting
+
+class ExperimentBase():
+
+    MODEL_NAME = ''
+
+    def __init__(self):
+        self.adv_dir = os.path.join('tmp', 'adv_{}'.format(self.MODEL_NAME))
+
+    def train(self, epoch=20000):
+        print('training {} for epoch={}'.format(self.MODEL_NAME, epoch))
+        x, y = self.cnn.make_inputs()
+        probs = self.cnn.make_model(x)
+
+        self.cnn.start_session()
+        self.cnn.train(probs, x, y, epoch, self.dataset)
+        # cnn.test(gtsrb)
+        self.cnn.end_session()
+
+    def craft_adv(self, num_data, attack, var_name, var_values):
+        """Crafting adversarial examples.
+        attack: Attack algorithm.
+        params_list: a list of adversarial parameters.
+        """
+        test_data = self.dataset.raw_test_data()[:num_data]
+        batch_size = 100
+
+        if not os.path.isdir(self.adv_dir):
+            os.makedirs(self.adv_dir)
+
+        self.cnn.start_session()
+        self.cnn.init_session_and_restore()
+
+        for var_value in var_values:
+            attack.update_params({var_name: var_value})
+            for batch_pos in range(0, test_data.shape[0], batch_size):
+
+                filepath = os.path.join(self.adv_dir, '{}_{}-{:0.1f}-{}.npy'.format(
+                    attack.name, self.dataset.name, var_value, batch_pos))
+
+                if os.path.isfile(filepath):
+                    print('{} exists, skip this batch'.format(filepath))
+
+                else:
+                    print("======= batch {}, {} = {}".format(batch_pos, var_name, var_value))
+                    batch = test_data[batch_pos:batch_pos+batch_size]
+                    result = attack.craft_examples(batch)
+                    result = attack.summarize(batch, *result)
+
+                    result.dump(filepath)
+
+        self.cnn.end_session()
+
+    def craft_fgsm(self, num_data):
+        params = {'eps': 0.2, 'clip_min': 0., 'clip_max': 1.}
+        attack = BatchFGSMCrafting(self.cnn, params, self.dataset.IMAGE_SIZE, self.dataset.CLASSES, self.dataset.CHANNELS)
+        var_values = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+
+        self.craft_adv(num_data, attack, 'eps', var_values)
+
+    def craft_jsma(self, num_data):
+        params = {'theta': 1., 'gamma': 0.1, 'clip_min': 0., 'clip_max': 1., 'y_target': None}
+        attack = BatchJSMACrafting(self.cnn, params, self.dataset.IMAGE_SIZE, self.dataset.CLASSES, self.dataset.CHANNELS)
+        var_values = [0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12]
+
+        self.craft_adv(num_data, attack, 'gamma', var_values)
+
+
+
 # tf.logging.set_verbosity(tf.logging.INFO)
 
 
-def train_cnn_cgtsrb10():
-    gtsrb = ColorGtsrb10Provider()
-    gtsrb.dump_images()
+class CGTSRB10(ExperimentBase):
 
-    cnn = CNNModel(
-        image_size=gtsrb.IMAGE_SIZE,
-        classes=gtsrb.CLASSES,
-        channels=3,
-        model_name='gtsrb-32x32',
-        model_dir='tmp/cgtsrb10_model-32x32',
-        conv_layers=[32, 64, 128],
-        fc_layers=[512],
-    )
+    MODEL_NAME = 'cgtsrb10-32x32'
 
-    x, y = cnn.make_inputs()
-    probs = cnn.make_model(x)
+    def __init__(self):
+        super().__init__()
 
-    cnn.start_session()
-    cnn.train(probs, x, y, 20000, gtsrb)
-    # cnn.test(gtsrb)
-    cnn.end_session()
+        self.dataset = ColorGtsrb10Provider()
+        self.cnn = CNNModel(
+            image_size=self.dataset.IMAGE_SIZE,
+            classes=self.dataset.CLASSES,
+            channels=self.dataset.CHANNELS,
+            model_name=self.MODEL_NAME,
+            model_dir='tmp/model-{}'.format(self.MODEL_NAME),
+            conv_layers=[32, 64, 128],
+            fc_layers=[512],
+        )
 
 
-def train_cnn_cifar10():
-    cifar10 = Cifar10Provider()
-    #cifar10.dump_images()
+class CIFAR10(ExperimentBase):
+    MODEL_NAME = 'cifar10-32x32'
 
-    cnn = CNNModel(
-        image_size=cifar10.IMAGE_SIZE,
-        classes=cifar10.CLASSES,
-        channels=3,
-        kernel_size=[3, 3],
-        model_name='cifar10-32x32',
-        model_dir='tmp/cifar10_model-32x32',
-        conv_layers=[48, 96, 192],
-        fc_layers=[512, 256],
-    )
+    def __init__(self):
+        super().__init__()
 
-    x, y = cnn.make_inputs()
-    probs = cnn.make_model(x)
-
-    cnn.start_session()
-    cnn.train(probs, x, y, 180000, cifar10)
-    # cnn.test(gtsrb)
-    cnn.end_session()
+        self.dataset = Cifar10Provider()
+        self.cnn = CNNModel(
+            image_size=self.dataset.IMAGE_SIZE,
+            classes=self.dataset.CLASSES,
+            channels=self.dataset.CHANNELS,
+            kernel_size=[3, 3],
+            model_name=self.MODEL_NAME,
+            model_dir='tmp/model-{}'.format(self.MODEL_NAME),
+            conv_layers=[48, 96, 192],
+            fc_layers=[512, 256],
+        )
 
 
-def train_cnn_fashion_mnist():
-    fmnist = FashionMnistProvider()
-    # fmnist.dump_images()
+class FashionMNIST(ExperimentBase):
+    MODEL_NAME = 'fmnist-28x28'
 
-    cnn = CNNModel(
-        image_size=fmnist.IMAGE_SIZE,
-        classes=fmnist.CLASSES,
-        channels=fmnist.CHANNELS,
-        model_name='fmnist-28x28',
-        model_dir='tmp/fmnist_model-28x28',
-        conv_layers=[32, 64],
-        fc_layers=[1024],
-    )
-
-    x, y = cnn.make_inputs()
-    probs = cnn.make_model(x)
-
-    cnn.start_session()
-    cnn.train(probs, x, y, 20000, fmnist)
-    # cnn.test(gtsrb)
-    cnn.end_session()
+    def __init__(self):
+        super().__init__()
+        self.dataset = FashionMnistProvider()
+        self.cnn = CNNModel(
+            image_size=self.dataset.IMAGE_SIZE,
+            classes=self.dataset.CLASSES,
+            channels=self.dataset.CHANNELS,
+            model_name=self.MODEL_NAME,
+            model_dir='tmp/model-{}'.format(self.MODEL_NAME),
+            conv_layers=[32, 64],
+            fc_layers=[1024],
+        )
 
 
-def train_cnn_mnist_bg():
-    mnist_bg = MnistBgProvider()
-    # mnist_bg.dump_images()
+class MNISTBG(ExperimentBase):
+    MODEL_NAME = 'mnist_bg-28x28'
 
-    cnn = CNNModel(
-        image_size=mnist_bg.IMAGE_SIZE,
-        classes=mnist_bg.CLASSES,
-        channels=mnist_bg.CHANNELS,
-        model_name='mnist_bg-28x28',
-        model_dir='tmp/mnist_bg_model-28x28',
-        conv_layers=[32, 64],
-        fc_layers=[1024],
-    )
+    def __init__(self):
+        super().__init__()
+        self.dataset = MnistBgProvider()
 
-    x, y = cnn.make_inputs()
-    probs = cnn.make_model(x)
-
-    cnn.start_session()
-    cnn.train(probs, x, y, 20000, mnist_bg)
-    # cnn.test(gtsrb)
-    cnn.end_session()
-
+        self.cnn = CNNModel(
+            image_size=self.dataset.IMAGE_SIZE,
+            classes=self.dataset.CLASSES,
+            channels=self.dataset.CHANNELS,
+            model_name=self.MODEL_NAME,
+            model_dir='tmp/model-{}'.format(self.MODEL_NAME),
+            conv_layers=[32, 64],
+            fc_layers=[1024],
+        )
 
 
 if __name__ == '__main__':
     cmd = sys.argv[1]
-    if cmd == 'train_cnn_cgtsrb10':
-        train_cnn_cgtsrb10()
-    elif cmd == 'train_cnn_cifar10':
-        train_cnn_cifar10()
-    elif cmd == 'train_cnn_fashion_mnist':
-        train_cnn_fashion_mnist()
+    model_name = sys.argv[2]
+
+    if model_name == 'cgtsrb10':
+        model = CGTSRB10()
+    elif model_name == 'fmnist':
+        model = FashionMNIST()
+    elif model_name == 'mnistbg':
+        model = MNISTBG()
+    elif model_name == 'cifar10':
+        model = CIFAR10()
+
+    if cmd == 'train':
+        model.train(20000)
+    elif cmd == 'adv_fgsm':
+        model.craft_fgsm(5000)
+    elif cmd == 'adv_jsma':
+        model.craft_jsma(2500)

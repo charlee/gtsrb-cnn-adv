@@ -12,6 +12,7 @@ from .color_gtsrb import ColorGtsrbProvider, ColorGtsrbClass
 
 class ColorGtsrb10Provider(ColorGtsrbProvider):
 
+    name = 'cgtsrb10'
     CLASSES = 10
     DATA_DIR = settings.DATA_TEMP_COLOR_GTSRB_10
 

@@ -7,14 +7,22 @@ class AdversarialExampleReader():
     def dump_adv(self, filename, count=10):
         data = np.load(filename)
         image_size = int(data[0][0])
-        canvas = Canvas(image_size, 3, count)
+        channels = int(data[0][2])
+
+        if channels == 3:
+            mode = 'RGB'
+        else:
+            mode = 'L'
+
+        canvas = Canvas(image_size, 3, count, mode=mode)
 
         print('Num of examples: {}'.format(data.shape[0]))
         print('Image size: {}'.format(image_size))
         print('Classes: {}'.format(data[0][1]))
+        print('Channels: {}'.format(data[0][2]))
 
         for i, row in enumerate(data[:count]):
-            image_data_size = image_size * image_size
+            image_data_size = image_size * image_size * channels
             image = row[10:10+image_data_size]
             adv = row[10+image_data_size:10+image_data_size*2]
             pertubation = adv - image

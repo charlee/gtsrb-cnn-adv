@@ -35,6 +35,8 @@ class ColorGtsrbClass(GtsrbClass):
 
 class ColorGtsrbProvider(GtsrbProvider):
 
+    name = 'cgtsrb'
+
     CHANNELS = 3
     DATA_DIR = settings.DATA_TEMP_COLOR_GTSRB
 
