@@ -14,7 +14,7 @@ class CNNModel(Model):
                  channels=1,
                  kernel_size=[5, 5],
                  conv_layers=[32, 64],
-                 fc_layer=1024,
+                 fc_layers=[1024],
                  ):
         """
         Make a CNN model.
@@ -30,7 +30,7 @@ class CNNModel(Model):
         self.image_size = image_size
         self.classes = classes
         self.conv_layers = conv_layers
-        self.fc_layer = fc_layer
+        self.fc_layers = fc_layers
         self.kernel_size = kernel_size
         self.model_name = model_name
         self.model_dir = model_dir
@@ -50,7 +50,7 @@ class CNNModel(Model):
     def make_model(self, x):
 
         with tf.name_scope('cnn'):
-            h_pool = x
+            input_layer = x
             prev_layer_features = self.channels
             layer_size = self.image_size * self.image_size        # size of current layer
 
@@ -63,34 +63,44 @@ class CNNModel(Model):
                     )
 
                     b_conv = self.bias_variable([feature_count], name='bias_{}'.format(i+1))
-                    h_conv = tf.nn.relu(self.conv2d(h_pool, W_conv) + b_conv)
+                    h_conv = tf.nn.relu(self.conv2d(input_layer, W_conv) + b_conv)
 
                 with tf.name_scope('pool_{}'.format(i+1)):
                     # Pooling Layer #1 => 32 maps, 16x16
                     h_pool = self.max_pool_2x2(h_conv)
+                    
+                # Dropout
+                h_dropout = tf.nn.dropout(h_pool, keep_prob=0.75)
+                input_layer = h_dropout
 
                 prev_layer_features = feature_count
                 layer_size //= 4
 
-
-            # Full-connected Layer
-            with tf.name_scope('fc1'):
+            # Reshape
+            with tf.name_scope('reshape'):
                 fc_size = layer_size * prev_layer_features
-                W_fc1 = self.weight_variable([fc_size, self.fc_layer], name='fc_weight')
-                b_fc1 = self.bias_variable([self.fc_layer], name='fc_bias')
+                input_layer = tf.reshape(input_layer, [-1, fc_size])
 
-                h_pool_flat = tf.reshape(h_pool, [-1, fc_size])
-                h_fc1 = tf.nn.relu(tf.matmul(h_pool_flat, W_fc1) + b_fc1)
+            last_fc_size = fc_size
+            for i, num_perceptons in enumerate(self.fc_layers):
 
-            with tf.name_scope('dropout'):
-                h_fc1_dropout = tf.nn.dropout(h_fc1, keep_prob=0.5)
+                # Full-connected Layer
+                with tf.name_scope('fc{}'.format(i+1)):
+                    W_fc = self.weight_variable([last_fc_size, num_perceptons], name='weight_fc{}'.format(i+1))
+                    b_fc = self.bias_variable([num_perceptons], name='bias_fc{}'.format(i+1))
+                    input_layer = tf.nn.relu(tf.matmul(input_layer, W_fc) + b_fc)
 
-            with tf.name_scope('fc2'):
+                with tf.name_scope('fc_dropout{}'.format(i+1)):
+                    input_layer = tf.nn.dropout(input_layer, keep_prob=0.5)
+
+                last_fc_size = num_perceptons
+
+            with tf.name_scope('readout'):
                 # Readout layer
-                W_fc2 = self.weight_variable([self.fc_layer, self.classes], name='fc_readout')
+                W_fc2 = self.weight_variable([last_fc_size, self.classes], name='weight_readout')
                 b_fc2 = self.bias_variable([self.classes], name='bias_readout')
 
-                probs = tf.matmul(h_fc1_dropout, W_fc2) + b_fc2
+                probs = tf.matmul(input_layer, W_fc2) + b_fc2
 
         self.create_global_step()
 
