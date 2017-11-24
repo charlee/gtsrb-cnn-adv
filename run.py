@@ -3,6 +3,7 @@ import logging
 # import tensorflow as tf
 from cnn_gtsrb.dataset.color_gtsrb_10 import ColorGtsrb10Provider
 from cnn_gtsrb.dataset.fashion_mnist import FashionMnistProvider
+from cnn_gtsrb.dataset.mnist_bg import MnistBgProvider
 from cnn_gtsrb.dataset.cifar10 import Cifar10Provider
 from cnn_gtsrb.cnn.model import CNNModel
 #logging.basicConfig(level=logging.INFO)
@@ -52,7 +53,7 @@ def train_cnn_cifar10():
     probs = cnn.make_model(x)
 
     cnn.start_session()
-    cnn.train(probs, x, y, 20000, cifar10)
+    cnn.train(probs, x, y, 180000, cifar10)
     # cnn.test(gtsrb)
     cnn.end_session()
 
@@ -76,6 +77,29 @@ def train_cnn_fashion_mnist():
 
     cnn.start_session()
     cnn.train(probs, x, y, 20000, fmnist)
+    # cnn.test(gtsrb)
+    cnn.end_session()
+
+
+def train_cnn_mnist_bg():
+    mnist_bg = MnistBgProvider()
+    # mnist_bg.dump_images()
+
+    cnn = CNNModel(
+        image_size=mnist_bg.IMAGE_SIZE,
+        classes=mnist_bg.CLASSES,
+        channels=mnist_bg.CHANNELS,
+        model_name='mnist_bg-28x28',
+        model_dir='tmp/mnist_bg_model-28x28',
+        conv_layers=[32, 64],
+        fc_layers=[1024],
+    )
+
+    x, y = cnn.make_inputs()
+    probs = cnn.make_model(x)
+
+    cnn.start_session()
+    cnn.train(probs, x, y, 20000, mnist_bg)
     # cnn.test(gtsrb)
     cnn.end_session()
 

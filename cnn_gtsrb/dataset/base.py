@@ -92,8 +92,11 @@ class DatasetProvider():
 
                 for idx in range(images_in_class.shape[0]):
                     image = images_in_class[idx]
-                    image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE, self.CHANNELS]).astype(np.uint8)
-                    im2 = Image.fromarray(image)
+                    if self.CHANNELS == 1:
+                        image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE]).astype(np.uint8)
+                    else:
+                        image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE, self.CHANNELS]).astype(np.uint8)
+                    im2 = Image.fromarray(image, mode=mode)
 
                     x = idx % 10 * self.IMAGE_SIZE
                     y = idx // 10 * self.IMAGE_SIZE + 30

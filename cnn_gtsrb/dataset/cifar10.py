@@ -18,7 +18,7 @@ class Cifar10Provider(DatasetProvider):
         self.data_dir = os.path.join(self.DATA_DIR, 'cifar10_data')
 
         if not os.path.isdir(self.data_dir):
-            os.path.makedirs(self.data_dir)
+            os.makedirs(self.data_dir)
 
         if not os.path.isfile(os.path.join(self.data_dir, 'training.npy')):
 
