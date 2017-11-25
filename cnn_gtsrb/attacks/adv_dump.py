@@ -41,7 +41,7 @@ class AdversarialExampleReader():
             else:
                 border = 3
 
-            print("#{}: param={}, label/pred/target/adv_pred = {}".format(i, row[2:4], row[6:10]))
+            print("#{}: param={}, lbl/pred/tgt/adv_pred = {}".format(i, row[3:6], row[6:10]))
 
             canvas.paste_np(image.astype(np.uint8), 0, i)
             canvas.paste_np(np.clip(pertubation, 0, 255).astype(np.uint8), 1, i)
