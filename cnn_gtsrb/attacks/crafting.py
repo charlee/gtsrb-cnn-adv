@@ -12,14 +12,12 @@ from cleverhans import utils_tf
 from cleverhans.attacks import SaliencyMapMethod, FastGradientMethod
 
 logger = logging.getLogger('craft.py')
-if len(logger.handlers) == 0:
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter('[%(levelname)s %(asctime)s %(name)s] ' +
-                                    '%(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-
-logging.basicConfig(level=logging.DEBUG)
+ch = logging.StreamHandler()
+formatter = logging.Formatter('[%(levelname)s %(asctime)s %(name)s] ' +
+                                '%(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+logger.setLevel(logging.DEBUG)
 
 
 def generate_adv_examples(

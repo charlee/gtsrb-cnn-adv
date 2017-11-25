@@ -83,7 +83,7 @@ class ExperimentBase():
         params_list: a list of adversarial parameters.
         """
         test_data = self.dataset.raw_test_data()[:num_data]
-        batch_size = 100
+        batch_size = 10
 
         attack = FastBatchJSMACrafting(self.cnn, {}, self.dataset.IMAGE_SIZE, self.dataset.CLASSES, self.dataset.CHANNELS)
 
