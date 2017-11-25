@@ -46,7 +46,7 @@ class ExperimentBase():
             attack.update_params({var_name: var_value})
             for batch_pos in range(0, test_data.shape[0], batch_size):
 
-                filepath = os.path.join(self.adv_dir, '{}_{}-{:0.1f}-{}.npy'.format(
+                filepath = os.path.join(self.adv_dir, '{}_{}-{:0.2f}-{}.npy'.format(
                     attack.name, self.dataset.name, var_value, batch_pos))
 
                 if os.path.isfile(filepath):
