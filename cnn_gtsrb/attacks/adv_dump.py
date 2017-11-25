@@ -9,6 +9,9 @@ class AdversarialExampleReader():
         image_size = int(data[0][0])
         channels = int(data[0][2])
 
+        if count > data.shape[0]:
+            count = data.shape[0]
+
         if channels == 3:
             mode = 'RGB'
         else:

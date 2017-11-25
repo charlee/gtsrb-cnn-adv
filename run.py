@@ -9,7 +9,7 @@ from cnn_gtsrb.dataset.cifar10 import Cifar10Provider
 from cnn_gtsrb.cnn.model import CNNModel
 #logging.basicConfig(level=logging.INFO)
 
-from cnn_gtsrb.attacks.crafting import BatchFGSMCrafting, BatchJSMACrafting
+from cnn_gtsrb.attacks.crafting import BatchFGSMCrafting, BatchJSMACrafting, FastBatchJSMACrafting
 
 class ExperimentBase():
 
@@ -75,6 +75,39 @@ class ExperimentBase():
         var_values = [0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12]
 
         self.craft_adv(num_data, attack, 'gamma', var_values)
+
+    def fast_craft_jsma(self, num_data):
+
+        """Crafting adversarial examples.
+        attack: Attack algorithm.
+        params_list: a list of adversarial parameters.
+        """
+        test_data = self.dataset.raw_test_data()[:num_data]
+        batch_size = 1
+
+        attack = FastBatchJSMACrafting(self.cnn, {}, self.dataset.IMAGE_SIZE, self.dataset.CLASSES, self.dataset.CHANNELS)
+
+        if not os.path.isdir(self.adv_dir):
+            os.makedirs(self.adv_dir)
+
+        self.cnn.start_session()
+        self.cnn.init_session_and_restore()
+
+        for batch_pos in range(0, test_data.shape[0], batch_size):
+
+            filepath = os.path.join(self.adv_dir, 'fast-jsma_{}-{}.npy'.format(self.dataset.name, batch_pos))
+
+            if os.path.isfile(filepath):
+                print('{} exists, skip this batch'.format(filepath))
+
+            else:
+                print("======= batch {} ====".format(batch_pos))
+                batch = test_data[batch_pos:batch_pos+batch_size]
+                results = attack.batch_jsma_with_perturbation_rate(batch, 0.15, 1.0)
+                results = attack.summarize(batch, results)
+                results.dump(filepath)
+
+        self.cnn.end_session()
 
 
 
@@ -173,3 +206,5 @@ if __name__ == '__main__':
         model.craft_fgsm(5000)
     elif cmd == 'adv_jsma':
         model.craft_jsma(2500)
+    elif cmd == 'adv_fast_jsma':
+        model.fast_craft_jsma(5000)
