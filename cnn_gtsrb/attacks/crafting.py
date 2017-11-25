@@ -75,7 +75,7 @@ class BatchCrafting():
 
     attack_class = SaliencyMapMethod
 
-    def __init__(self, cnn_model, attack_params, image_size, num_classes):
+    def __init__(self, cnn_model, attack_params, image_size, num_classes, channels):
         """
         :param x: original input tensor.
         :param cnn_model: cnn model class.
@@ -84,6 +84,7 @@ class BatchCrafting():
         self.attack_params = attack_params
         self.num_classes = num_classes
         self.image_size = image_size
+        self.channels = channels
 
         # Input and Labels
         # x = [batch, size, size, 1], y = [batch, classes]
@@ -124,7 +125,7 @@ class BatchCrafting():
 
         # Craft adversarial examples
 
-        data = np.reshape(batch[:,:-1], [-1, self.image_size, self.image_size, 1])
+        data = np.reshape(batch[:,:-1], [-1, self.image_size, self.image_size, self.channels])
         data = data * (1./255)
 
         legit_predicts = sess.run(
@@ -144,7 +145,7 @@ class BatchCrafting():
 
         return (
             legit_predicts,
-            np.reshape(adv_examples * 255, [-1, self.image_size * self.image_size]),
+            np.reshape(adv_examples * 255, [-1, self.image_size * self.image_size * self.channels]),
             y,
             adv_predicts
         )
@@ -153,6 +154,7 @@ class BatchCrafting():
         raise NotImplemented()
 
 class BatchFGSMCrafting(BatchCrafting):
+    name = 'fgsm'
     attack_class = FastGradientMethod
 
     def __init__(self, cnn_model, attack_params, *args, **kwargs):
@@ -164,14 +166,17 @@ class BatchFGSMCrafting(BatchCrafting):
 
         batch_size = batch.shape[0]
 
-        # 1st column: image size    
+        # #0 column: image size    
         result.append(np.full([batch_size, 1], self.image_size))
-        # 2nd column: num of classes
+        # #1 column: num of classes
         result.append(np.full([batch_size, 1], self.num_classes))
+        # #2: channels
+        result.append(np.full([batch_size, 1], self.channels))
+
         # 3rd column: epsillon
         result.append(np.full([batch_size, 1], self.attack_params['eps']))
-        # 4-6th column: reserved
-        result.append(np.zeros([batch_size, 3]))
+        # 4-5th column: reserved
+        result.append(np.zeros([batch_size, 2]))
         # 7th column: labels (correct classes)
         result.append(batch[:,-1:])
         # 8th column: legit predicts
@@ -189,6 +194,7 @@ class BatchFGSMCrafting(BatchCrafting):
 
 
 class BatchJSMACrafting(BatchCrafting):
+    name = 'jsma'
     attack_class = SaliencyMapMethod
 
     def __init__(self, cnn_model, attack_params, *args, **kwargs):
@@ -205,12 +211,14 @@ class BatchJSMACrafting(BatchCrafting):
         result.append(np.full([batch_size, 1], self.image_size))
         # #1: num of classes
         result.append(np.full([batch_size, 1], self.num_classes))
+        # #2: channels
+        result.append(np.full([batch_size, 1], self.channels))
         # #2: gamma
         result.append(np.full([batch_size, 1], self.attack_params['gamma']))
         # #3: gamma
         result.append(np.full([batch_size, 1], self.attack_params['theta']))
         # #4-#5: reserved
-        result.append(np.zeros([batch_size, 2]))
+        result.append(np.zeros([batch_size, 1]))
         # #6: labels (correct classes)
         result.append(batch[:,-1:])
         # #7: legit predicts

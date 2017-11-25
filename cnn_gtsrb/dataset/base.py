@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw
 class DatasetProvider():
 
     IMAGE_SIZE = 28
+    CHANNELS = 1
     CLASSES = 10
 
     def __init__(self, batch_size=100, *args, **kwargs):
@@ -80,15 +81,22 @@ class DatasetProvider():
                 canvas_width = self.IMAGE_SIZE * 10
                 canvas_height = self.IMAGE_SIZE * math.ceil(images_in_class.shape[0] / 10) + 30
 
-                im = Image.new('L', (canvas_width, canvas_height))
+                if self.CHANNELS == 1:
+                    mode = 'L'
+                else:
+                    mode = 'RGB'
+                im = Image.new(mode, (canvas_width, canvas_height))
                 d = ImageDraw.Draw(im)
                 d.text((10, 10), 'Class = {}'.format(class_id), fill=255)
                 del d
 
                 for idx in range(images_in_class.shape[0]):
                     image = images_in_class[idx]
-                    image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE])
-                    im2 = Image.fromarray(image)
+                    if self.CHANNELS == 1:
+                        image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE]).astype(np.uint8)
+                    else:
+                        image = np.reshape(image, [self.IMAGE_SIZE, self.IMAGE_SIZE, self.CHANNELS]).astype(np.uint8)
+                    im2 = Image.fromarray(image, mode=mode)
 
                     x = idx % 10 * self.IMAGE_SIZE
                     y = idx // 10 * self.IMAGE_SIZE + 30
@@ -150,7 +158,7 @@ class DatasetProvider():
         labels = data[:, -1:]
 
         # Normalize image data to [0.0, 1.0] and reshape to [batch, w, h, channels]
-        images = np.reshape(images * (1. / 255), [-1, self.IMAGE_SIZE, self.IMAGE_SIZE, 1])
+        images = np.reshape(images * (1. / 255), [-1, self.IMAGE_SIZE, self.IMAGE_SIZE, self.CHANNELS])
 
         # Generate one hot vector for labels
         one_hot = np.zeros(shape=[labels.shape[0], self.CLASSES], dtype=np.float32)

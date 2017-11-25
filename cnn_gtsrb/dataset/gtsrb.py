@@ -76,6 +76,7 @@ class GtsrbClass:
 
 
 class GtsrbProvider(DatasetProvider):
+    name = 'gtsrb'
     TRAINING_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Training_Images.zip'
     TEST_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Test_Images.zip'
     TEST_ANNOTATION_URL = 'http://benchmark.ini.rub.de/Dataset/GTSRB_Final_Test_GT.zip'
