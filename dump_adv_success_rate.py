@@ -2,12 +2,12 @@ import glob
 import numpy as np
 
 
-for theta in np.arange(0.2, 1.1, 0.2):
-    filename = 'jsma_mnist-{:0.1f}-*.npy'.format(theta)
+for theta in [0.10, 0.20, 0.30, 0.40, 0.50, 0.60]:
+    filename = 'fgsm_mnist_bg-{:0.2f}-*.npy'.format(theta)
 
 
     results = []
-    for f in glob.glob('tmp/batch_adv/' + filename):
+    for f in glob.glob('tmp/adv_mnist_bg-28x28/' + filename):
         results.append(np.load(f))
     # results.append(np.load('tmp/batch_adv/jsma_gtsrb-0.2-0.npy'))
     

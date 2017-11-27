@@ -9,6 +9,10 @@ class AdversarialExampleReader():
         image_size = int(data[0][0])
         channels = int(data[0][2])
 
+        # compatibility for old format data
+        if channels == 0:
+            channels = 1
+
         if count > data.shape[0]:
             count = data.shape[0]
 

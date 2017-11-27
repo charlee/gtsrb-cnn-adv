@@ -70,8 +70,9 @@ class CNNModel(Model):
                     h_pool = self.max_pool_2x2(h_conv)
                     
                 # Dropout
-                h_dropout = tf.nn.dropout(h_pool, keep_prob=0.75)
-                input_layer = h_dropout
+                # h_dropout = tf.nn.dropout(h_pool, keep_prob=0.75)
+                # input_layer = h_dropout
+                input_layer = h_pool
 
                 prev_layer_features = feature_count
                 layer_size //= 4
@@ -90,8 +91,8 @@ class CNNModel(Model):
                     b_fc = self.bias_variable([num_perceptons], name='bias_fc{}'.format(i+1))
                     input_layer = tf.nn.relu(tf.matmul(input_layer, W_fc) + b_fc)
 
-                with tf.name_scope('fc_dropout{}'.format(i+1)):
-                    input_layer = tf.nn.dropout(input_layer, keep_prob=0.5)
+                # with tf.name_scope('fc_dropout{}'.format(i+1)):
+                #     input_layer = tf.nn.dropout(input_layer, keep_prob=0.5)
 
                 last_fc_size = num_perceptons
 

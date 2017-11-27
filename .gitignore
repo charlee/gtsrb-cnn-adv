@@ -7,6 +7,7 @@
 
 # Data
 tmp/
+tmp_dropout/
 
 # Python related.
 __pycache__/

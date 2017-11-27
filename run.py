@@ -5,6 +5,7 @@ import logging
 from cnn_gtsrb.dataset.color_gtsrb_10 import ColorGtsrb10Provider
 from cnn_gtsrb.dataset.fashion_mnist import FashionMnistProvider
 from cnn_gtsrb.dataset.mnist_bg import MnistBgProvider
+from cnn_gtsrb.dataset.mnist import MnistProvider
 from cnn_gtsrb.dataset.cifar10 import Cifar10Provider
 from cnn_gtsrb.cnn.model import CNNModel
 #logging.basicConfig(level=logging.INFO)
@@ -109,6 +110,8 @@ class ExperimentBase():
 
         self.cnn.end_session()
 
+    def adv_training(self, epoch=20000):
+
 
 
 # tf.logging.set_verbosity(tf.logging.INFO)
@@ -187,6 +190,24 @@ class MNISTBG(ExperimentBase):
         )
 
 
+class MNIST(ExperimentBase):
+    MODEL_NAME = 'mnist-28x28'
+
+    def __init__(self):
+        super().__init__()
+        self.dataset = MnistProvider()
+
+        self.cnn = CNNModel(
+            image_size=self.dataset.IMAGE_SIZE,
+            classes=self.dataset.CLASSES,
+            channels=self.dataset.CHANNELS,
+            model_name=self.MODEL_NAME,
+            model_dir='tmp/model-{}'.format(self.MODEL_NAME),
+            conv_layers=[32, 64],
+            fc_layers=[1024],
+        )
+
+
 if __name__ == '__main__':
     cmd = sys.argv[1]
     model_name = sys.argv[2]
@@ -199,12 +220,17 @@ if __name__ == '__main__':
         model = MNISTBG()
     elif model_name == 'cifar10':
         model = CIFAR10()
+    elif model_name == 'mnist':
+        model = MNIST()
 
     if cmd == 'train':
-        model.train(20000)
+        if model_name == 'cifar10':
+            model.train(60000)
+        else:
+            model.train(20000)
     elif cmd == 'adv_fgsm':
         model.craft_fgsm(5000)
     elif cmd == 'adv_jsma':
         model.craft_jsma(2500)
     elif cmd == 'adv_fast_jsma':
-        model.fast_craft_jsma(5000)
+        model.fast_craft_jsma(2000)

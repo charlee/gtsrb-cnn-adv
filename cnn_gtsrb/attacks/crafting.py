@@ -311,9 +311,13 @@ class FastBatchJSMACrafting(BatchCrafting):
         confused_at = 0
         success_at = 0
 
+        # must have at least 10 successful pred to be judged as successful
+        confuse_count = 0
+        success_count = 0
+
         logger.debug("Starting JSMA attack up to {} iterations".format(max_iters))
         # Repeat this main loop until we have achieved misclassification
-        while (current != target and iteration < max_iters and
+        while (success_at == 0 and iteration < max_iters and
             len(search_domain) > 1):
             # Reshape the adversarial example
             adv_x_original_shape = np.reshape(adv_x, original_shape)
@@ -345,12 +349,21 @@ class FastBatchJSMACrafting(BatchCrafting):
 
             # charlee: Record the iternation when model gets confused
             if current != orig_label and confused_at == 0:
-                confused_at = iteration
+                confuse_count += 1
+                if confuse_count >= 1:
+                    confused_at = iteration
+            else:
+                confuse_count = 0
 
-        if current == target:
-            logger.info("Attack succeeded using {} iterations".format(iteration))
-            success_at = iteration
-        else:
+            if current == target:
+                success_count += 1
+                if success_count >= 1:
+                    logger.info("Attack succeeded using {} iterations".format(iteration))
+                    success_at = iteration
+            else:
+                success_count = 0
+
+        if success_at == 0:
             logger.info(("Failed to find adversarial example " +
                         "after {} iterations").format(iteration))
 
