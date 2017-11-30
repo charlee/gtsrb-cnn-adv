@@ -129,7 +129,7 @@ class CNNModel(Model):
     def end_session(self):
         self.sess.close()
 
-    def train(self, probs, x, y, epoch, data_provider):
+    def train(self, probs, x, y, epoch, data_provider, adv_preds=None):
         """Train the model with given data.
         data_provider must be a subclass of DatasetProvider which provides a `next_batch` function
         that will return a tuple of (data, label).
@@ -145,6 +145,12 @@ class CNNModel(Model):
             loss = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=probs)
             )
+
+            if adv_preds is not None:
+                adv_loss = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=adv_preds)
+                )
+                loss = (loss + adv_loss) / 2
 
             # Train step
             train_step = tf.train.AdamOptimizer(1e-4).minimize(loss, global_step=global_step)
@@ -177,7 +183,7 @@ class CNNModel(Model):
                     self.calculate_train_accuracy(accuracy, x, y, batch, summary=summary)
 
                 if i % 1000 == 0:
-                    self.calculate_test_accuracy(accuracy, x, y, data_provider.test_data(), summary=summary)
+                    self.calculate_test_accuracy(accuracy, x, y, data_provider.test_data(100), summary=summary)
 
             # Save the model
             self.save_model()

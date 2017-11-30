@@ -19,3 +19,6 @@ docs/*.aux
 docs/*.bbl
 docs/*.log
 docs/*.synctex.gz
+
+*.rar
+*.zip

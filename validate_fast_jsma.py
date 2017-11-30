@@ -3,23 +3,34 @@ from PIL import Image
 import numpy as np
 import tensorflow as tf
 from cnn_gtsrb.cnn.model import CNNModel
+tf.logging.set_verbosity(tf.logging.INFO)
 
 
 results = []
-for f in glob.glob('tmp/adv_mnist_bg-28x28/fast-jsma_*.npy'):
+for f in glob.glob('tmp/adv_cgtsrb10-32x32/fast-jsma_*.npy'):
     results.append(np.load(f))
 
 data = np.concatenate(results, axis=0)
 
 cnn = CNNModel(
-    image_size=28,
+    image_size=32,
     classes=10,
-    channels=1,
-    model_name='mnist_bg-28x28',
-    model_dir='tmp/model-mnist_bg-28x28',
-    conv_layers=[32, 64],
-    fc_layers=[1024],
+    channels=3,
+    model_name='cgtsrb10-32x32',
+    model_dir='tmp/model-cgtsrb10-32x32',
+    conv_layers=[32, 64, 128],
+    fc_layers=[512],
 )
+# cnn = CNNModel(
+#     image_size=32,
+#     classes=10,
+#     channels=3,
+#     model_name='cifar10-32x32',
+#     model_dir='tmp/model-cifar10-32x32',
+#     kernel_size=[3, 3],
+#     conv_layers=[48, 96, 192],
+#     fc_layers=[512, 256],
+# )
 
 x, _ = cnn.make_inputs()
 probs = cnn.make_model(x)

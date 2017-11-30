@@ -7,8 +7,10 @@ from cnn_gtsrb.dataset.fashion_mnist import FashionMnistProvider
 from cnn_gtsrb.dataset.mnist_bg import MnistBgProvider
 from cnn_gtsrb.dataset.mnist import MnistProvider
 from cnn_gtsrb.dataset.cifar10 import Cifar10Provider
+from cnn_gtsrb.dataset.adv import AdversarialProvider
 from cnn_gtsrb.cnn.model import CNNModel
 #logging.basicConfig(level=logging.INFO)
+from cleverhans.attacks import FastGradientMethod, SaliencyMapMethod
 
 from cnn_gtsrb.attacks.crafting import BatchFGSMCrafting, BatchJSMACrafting, FastBatchJSMACrafting
 
@@ -110,8 +112,39 @@ class ExperimentBase():
 
         self.cnn.end_session()
 
-    def adv_training(self, epoch=20000):
+    def adv_fgsm_train(self, epoch=20000):
+        print('training {} for epoch={}'.format(self.MODEL_NAME, epoch))
+        fgsm_params = {'eps': 0.2, 'clip_min': 0., 'clip_max': 1.}
+        x, y = self.cnn.make_inputs()
+        probs = self.cnn.make_model(x)
 
+        self.cnn.start_session()
+        self.cnn.init_session_and_restore()
+
+        fgsm = FastGradientMethod(self.cnn, sess=self.cnn.sess)
+        adv_x = fgsm.generate(x, **fgsm_params)
+        adv_probs = self.cnn.make_model(adv_x)
+
+        self.cnn.train(probs, x, y, epoch, self.dataset, adv_preds=adv_probs)
+        # cnn.test(gtsrb)
+        self.cnn.end_session()
+
+    def adv_jsma_train(self, epoch=5000):
+        print('training {} for epoch={}'.format(self.MODEL_NAME, epoch))
+        params = {'theta': 1., 'gamma': 0.1, 'clip_min': 0., 'clip_max': 1., 'y_target': None}
+        x, y = self.cnn.make_inputs()
+        probs = self.cnn.make_model(x)
+
+        self.cnn.start_session()
+        self.cnn.init_session_and_restore()
+
+        jsma = SaliencyMapMethod(self.cnn, sess=self.cnn.sess)
+        adv_x = jsma.generate(x, **params)
+        adv_probs = self.cnn.make_model(adv_x)
+
+        self.cnn.train(probs, x, y, epoch, self.dataset, adv_preds=adv_probs)
+        # cnn.test(gtsrb)
+        self.cnn.end_session()
 
 
 # tf.logging.set_verbosity(tf.logging.INFO)
@@ -233,4 +266,8 @@ if __name__ == '__main__':
     elif cmd == 'adv_jsma':
         model.craft_jsma(2500)
     elif cmd == 'adv_fast_jsma':
-        model.fast_craft_jsma(2000)
+        model.fast_craft_jsma(1000)
+    elif cmd == 'adv_fgsm_train':
+        model.adv_fgsm_train(10000)
+    elif cmd == 'adv_jsma_train':
+        model.adv_jsma_train(5)

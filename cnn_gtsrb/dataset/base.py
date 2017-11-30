@@ -20,9 +20,6 @@ class DatasetProvider():
     def init(self):
         raise NotImplemented('Inherited class must implement `init`')
 
-    def next_batch(self, type='training'):
-        raise NotImplemented('Inherited class must implement `next_batch`')
-
     def download(self, url, local_file):
 
         target_dir = os.path.dirname(local_file)
@@ -118,7 +115,7 @@ class DatasetProvider():
 
     def train_data(self):
         """Return all train images and labels."""
-        data = np.load(os.path.join(self.data_dir, 'training.npy'))
+        data = self.raw_train_data()
         np.random.shuffle(data)
         return self.split_images_and_labels(size and data[:size] or data)
 
@@ -128,7 +125,7 @@ class DatasetProvider():
             batch_size = self.batch_size
 
         if not hasattr(self, 'pool'):
-            self.pool = np.load(os.path.join(self.data_dir, 'training.npy'))
+            self.pool = self.raw_train_data()
             self.current_pos = 0
             np.random.shuffle(self.pool)
 
@@ -144,7 +141,7 @@ class DatasetProvider():
 
     def test_data(self, size=None):
         """Pick `size` test data randomly."""
-        data = np.load(os.path.join(self.data_dir, 'test.npy'))
+        data = self.raw_test_data()
         np.random.shuffle(data)
 
         if size is not None:

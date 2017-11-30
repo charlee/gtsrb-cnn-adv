@@ -3,7 +3,7 @@ import numpy as np
 
 
 results = []
-for f in glob.glob('tmp/adv_fmnist-28x28/fast-jsma*.npy'):
+for f in glob.glob('tmp/adv_mnist-28x28/fast-jsma*.npy'):
     results.append(np.load(f))
 
 data = np.concatenate(results, axis=0)
